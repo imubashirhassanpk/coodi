@@ -6,7 +6,7 @@
   "build": {
     "beforeDevCommand": "./node_modules/.bin/vp dev",
     "devUrl": "http://127.0.0.1:1420",
-    "beforeBuildCommand": "./node_modules/.bin/vp build",
+    "beforeBuildCommand": "pnpm exec vp build",
     "frontendDist": "../dist"
   },
   "app": {
