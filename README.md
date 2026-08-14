@@ -60,6 +60,10 @@ pnpm run build:mac:intel          # x86_64-apple-darwin
 
 These commands produce `.app` and `.dmg` bundles under `src-tauri/target/<target>/release/bundle/`. Local builds are unsigned unless Apple signing environment variables are configured. See [docs/INSTALL_MACOS.md](docs/INSTALL_MACOS.md) for prerequisites, signing, and installation details. Automated Windows and macOS builds are documented in [docs/CI_INSTALLERS.md](docs/CI_INSTALLERS.md).
 
+## Product website source
+
+The deployable Coodi product website and documentation portal is available in [`website-hostinger`](./website-hostinger). It is a self-contained Node.js source folder that includes local product assets and a Hostinger deployment guide. See [`website-hostinger/HOSTINGER.md`](./website-hostinger/HOSTINGER.md) for the exact install, build, and start commands.
+
 ## Local installer builds for Windows and macOS
 
 Use this section when building from the checked-out Coodi source on your own machine. These are **local builds**, not GitHub Actions commands. Run the platform-specific build command on the corresponding operating system, and do not commit certificates, API keys, Apple credentials, or signing tokens.

@@ -1,0 +1,80 @@
+/** Quiet Command Center global foundation: graphite motion, editorial warm surfaces, and Coodi Signal Blue. */
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+}
+
+:root {
+  --background: oklch(0.965 0.004 80);
+  --foreground: oklch(0.18 0.005 285);
+  --card: oklch(0.99 0.002 80);
+  --card-foreground: oklch(0.18 0.005 285);
+  --popover: oklch(0.99 0.002 80);
+  --popover-foreground: oklch(0.18 0.005 285);
+  --primary: oklch(0.56 0.22 263);
+  --primary-foreground: oklch(0.99 0.002 80);
+  --secondary: oklch(0.92 0.005 80);
+  --secondary-foreground: oklch(0.25 0.005 285);
+  --muted: oklch(0.92 0.005 80);
+  --muted-foreground: oklch(0.52 0.01 285);
+  --accent: oklch(0.91 0.02 263);
+  --accent-foreground: oklch(0.31 0.1 263);
+  --border: oklch(0.84 0.006 80);
+  --input: oklch(0.84 0.006 80);
+  --ring: oklch(0.56 0.22 263);
+  --radius: 0.4rem;
+}
+
+* { border-color: var(--border); }
+html { scroll-behavior: smooth; }
+body {
+  min-width: 320px;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: "Space Grotesk", sans-serif;
+  text-rendering: optimizeLegibility;
+}
+button, a { -webkit-tap-highlight-color: transparent; }
+button:active, a:active { transform: scale(0.98); }
+
+/* Keep the hero copy visually separate from the persistent navigation at normal desktop zoom. */
+main > section:first-child {
+  padding-top: 6rem;
+}
+
+@media (min-width: 1024px) {
+  main > section:first-child {
+    padding-top: 7rem;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  main > section { animation: coodi-rise 380ms cubic-bezier(0.23, 1, 0.32, 1) both; }
+  main > section:nth-child(2) { animation-delay: 40ms; }
+  main > section:nth-child(3) { animation-delay: 80ms; }
+}
+
+@keyframes coodi-rise {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}

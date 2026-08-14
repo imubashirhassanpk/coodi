@@ -19,5 +19,9 @@
 - [ ] Build, inspect, and publish a Windows-only patch installer containing the verified settings and icon fixes. Deferred for this task at the user's request.
 - [x] Document the localhost Windows NSIS `.exe` installer build and prompt-based verification workflow in the README.
 - [x] Validate and push the README documentation update to both Coodi repositories.
+- [x] Replace the GitHub README header logo with the Coodi C-mark asset.
+- [x] Add a standalone Hostinger Node.js-ready website source folder to the Coodi GitHub repository.
+- [ ] Commit and push the standalone `website-hostinger` source, C-mark README logo, and README deployment link to GitHub.
+- [ ] Verify the remote Coodi repository contains the Hostinger source folder and deployment guide.
 - [x] Document the local macOS DMG build commands, architecture options, signing caveats, and output paths in the README.
 - [x] Add copy-paste Windows and macOS build prompts for Cursor, Claude, Grok, and similar coding assistants.
