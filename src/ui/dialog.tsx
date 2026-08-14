@@ -37,6 +37,7 @@ interface DialogProps {
   headerActions?: ReactNode;
   footer?: ReactNode;
   size?: "sm" | "md" | "lg";
+  scrollContent?: boolean;
   headerBorder?: boolean;
   footerBorder?: boolean;
   classNames?: Partial<{
@@ -186,6 +187,7 @@ const AppDialog = ({
   headerActions,
   footer,
   size = "md",
+  scrollContent = true,
   classNames,
 }: DialogProps) => {
   const prefersReducedMotion = useReducedMotionConfig();
@@ -275,9 +277,18 @@ const AppDialog = ({
             </div>
           </div>
 
-          <ScrollArea className="flex-1" contentClassName={cn("p-4", classNames?.content)}>
-            {children}
-          </ScrollArea>
+          {scrollContent ? (
+            <ScrollArea
+              className="min-h-0 flex-1"
+              contentClassName={cn("p-4", classNames?.content)}
+            >
+              {children}
+            </ScrollArea>
+          ) : (
+            <div className={cn("flex min-h-0 flex-1 overflow-hidden", classNames?.content)}>
+              {children}
+            </div>
+          )}
 
           {footer && (
             <div className="flex shrink-0 items-center justify-end gap-2 px-4 py-3">{footer}</div>

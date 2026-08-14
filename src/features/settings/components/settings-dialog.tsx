@@ -208,6 +208,7 @@ const SettingsDialog = ({ isOpen, onClose }: SettingsDialogProps) => {
     <>
       <Dialog
         onClose={onClose}
+        scrollContent={false}
         title={
           <>
             <span className="max-[720px]:hidden">Settings</span>

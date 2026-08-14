@@ -8,6 +8,7 @@ const tabsDirectory = fileURLToPath(new URL("../components/tabs", import.meta.ur
 const aiSelectorsDirectory = fileURLToPath(
   new URL("../../ai/components/selectors", import.meta.url),
 );
+const appDialogFile = fileURLToPath(new URL("../../../ui/dialog.tsx", import.meta.url));
 
 const settingsComponentFiles = [
   ...readdirSync(componentsDirectory)
@@ -86,6 +87,16 @@ describe("settings UI contract", () => {
     expect(sectionSource).toContain("@max-[640px]/settings:flex-col");
     expect(sectionSource).toContain("@max-[640px]/settings:w-full");
     expect(sectionSource).toContain("@max-[640px]/settings:[&>div]:flex-wrap");
+  });
+
+  it("gives long settings tabs a single bounded vertical scroll owner", () => {
+    const settingsDialogSource = readFileSync(`${componentsDirectory}/settings-dialog.tsx`, "utf8");
+    const appDialogSource = readFileSync(appDialogFile, "utf8");
+
+    expect(settingsDialogSource).toContain("scrollContent={false}");
+    expect(settingsDialogSource).toContain('className="min-h-0 min-w-0 flex-1"');
+    expect(appDialogSource).toContain("scrollContent = true");
+    expect(appDialogSource).toContain('"flex min-h-0 flex-1 overflow-hidden"');
   });
 
   it("content-sizes AI selector triggers and menus in settings", () => {
