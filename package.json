@@ -1,6 +1,6 @@
 {
   "name": "coodi",
-  "version": "0.11.3",
+  "version": "0.11.4-preview.1",
   "private": true,
   "type": "module",
   "scripts": {

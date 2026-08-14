@@ -1,6 +1,6 @@
 [package]
 name = "coodi"
-version = "0.11.3"
+version = "0.11.4-preview.1"
 description = "Coodi code editor"
 authors = ["you"]
 edition = "2024"
