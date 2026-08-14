@@ -1,0 +1,24 @@
+{
+  "$schema": "https://www.mubashirhassan.com/coodi/schemas/extension.json",
+  "id": "coodi.terraform",
+  "name": "Terraform",
+  "displayName": "Terraform",
+  "version": "1.0.0",
+  "description": "Terraform and HCL language support with LSP",
+  "publisher": "Coodi",
+  "categories": ["Language"],
+  "languages": [
+    {
+      "id": "terraform",
+      "extensions": [".tf", ".tfvars"],
+      "aliases": ["Terraform", "HCL", "hcl"]
+    }
+  ],
+  "capabilities": {
+    "lsp": {
+      "name": "terraform-ls",
+      "runtime": "binary",
+      "args": ["serve"]
+    }
+  }
+}

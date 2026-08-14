@@ -1,0 +1,7 @@
+#!/bin/bash
+cd "$(dirname "$0")"
+
+if [ -x ./usr/bin/coodi ]; then
+  exec ./usr/bin/coodi "$@"
+fi
+exec ./usr/bin/coodi-code "$@"

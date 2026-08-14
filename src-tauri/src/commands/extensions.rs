@@ -1,0 +1,578 @@
+use crate::{
+   app_runtime::AppHandle,
+   secure_storage::{get_secret, remove_secret, store_secret},
+};
+use coodi_extensions::{DownloadInfo, ExtensionInstaller, ExtensionMetadata};
+use sha2::{Digest, Sha256};
+use std::{
+   env,
+   fs::{self, File},
+   io::Write,
+   path::{Path, PathBuf},
+};
+use tauri::{AppHandle as TauriAppHandle, Runtime, command};
+use url::Url;
+
+fn validate_extension_id(extension_id: &str) -> Result<(), String> {
+   if extension_id.is_empty() || extension_id.len() > 128 {
+      return Err("Invalid extension id length".to_string());
+   }
+   if extension_id.contains("..") || extension_id.contains('/') || extension_id.contains('\\') {
+      return Err("Invalid extension id path characters".to_string());
+   }
+   if !extension_id
+      .chars()
+      .all(|ch| ch.is_ascii_alphanumeric() || ch == '.' || ch == '_' || ch == '-')
+   {
+      return Err("Invalid extension id characters".to_string());
+   }
+   Ok(())
+}
+
+fn validate_extension_key(key: &str) -> Result<(), String> {
+   if key.is_empty() || key.len() > 128 {
+      return Err("Invalid extension key length".to_string());
+   }
+   if !key
+      .chars()
+      .all(|ch| ch.is_ascii_alphanumeric() || ch == '.' || ch == '_' || ch == '-')
+   {
+      return Err("Invalid extension key characters".to_string());
+   }
+   Ok(())
+}
+
+fn extension_secret_key(extension_id: &str, key: &str) -> Result<String, String> {
+   validate_extension_id(extension_id)?;
+   validate_extension_key(key)?;
+   Ok(format!("extension:{extension_id}:{key}"))
+}
+
+fn validate_extension_entrypoint(entrypoint: &str) -> Result<(), String> {
+   let path = Path::new(entrypoint);
+   if entrypoint.is_empty()
+      || path.is_absolute()
+      || path
+         .components()
+         .any(|component| !matches!(component, std::path::Component::Normal(_)))
+   {
+      return Err("Invalid extension entrypoint".to_string());
+   }
+   Ok(())
+}
+
+fn is_allowed_extension_host(host: &str) -> bool {
+   host == "www.mubashirhassan.com" || host.ends_with(".www.mubashirhassan.com")
+}
+
+fn validate_extension_download_url(input: &str) -> Result<(), String> {
+   let parsed = Url::parse(input).map_err(|_| "Invalid extension download URL".to_string())?;
+   let host = parsed.host_str().unwrap_or_default();
+   match parsed.scheme() {
+      "https" => {
+         if !cfg!(debug_assertions) && !is_allowed_extension_host(host) {
+            return Err("Extension download host is not allowed".to_string());
+         }
+      }
+      "http" if cfg!(debug_assertions) => {
+         if host != "localhost" && host != "127.0.0.1" {
+            return Err("Insecure extension download URL is not allowed".to_string());
+         }
+      }
+      _ => return Err("Extension download URL must use HTTPS".to_string()),
+   }
+   Ok(())
+}
+
+#[command]
+pub async fn download_extension(
+   url: String,
+   extension_id: String,
+   checksum: String,
+) -> Result<String, String> {
+   validate_extension_id(&extension_id)?;
+   validate_extension_download_url(&url)?;
+
+   // Get extensions directory
+   let extensions_dir = get_extensions_dir()?;
+   let download_dir = extensions_dir.join("downloads");
+
+   // Create downloads directory if it doesn't exist
+   fs::create_dir_all(&download_dir)
+      .map_err(|e| format!("Failed to create downloads directory: {}", e))?;
+
+   // Download the file
+   let response = reqwest::get(&url)
+      .await
+      .map_err(|e| format!("Failed to download extension: {}", e))?;
+
+   if !response.status().is_success() {
+      return Err(format!(
+         "Failed to download extension: HTTP {}",
+         response.status()
+      ));
+   }
+
+   let bytes = response
+      .bytes()
+      .await
+      .map_err(|e| format!("Failed to read response: {}", e))?;
+
+   // Verify checksum
+   let mut hasher = Sha256::new();
+   hasher.update(&bytes);
+   let result = hasher.finalize();
+   let computed_checksum = format!("{:x}", result);
+
+   if computed_checksum != checksum {
+      return Err(format!(
+         "Checksum mismatch: expected {}, got {}",
+         checksum, computed_checksum
+      ));
+   }
+
+   // Save to downloads directory
+   let file_path = download_dir.join(format!("{}.wasm", extension_id));
+   let mut file = File::create(&file_path).map_err(|e| format!("Failed to create file: {}", e))?;
+
+   file
+      .write_all(&bytes)
+      .map_err(|e| format!("Failed to write file: {}", e))?;
+
+   Ok(file_path
+      .to_str()
+      .ok_or("Failed to convert path to string")?
+      .to_string())
+}
+
+#[command]
+pub fn install_extension(extension_id: String, package_path: String) -> Result<(), String> {
+   validate_extension_id(&extension_id)?;
+
+   // Get extensions directory
+   let extensions_dir = get_extensions_dir()?;
+   let installed_dir = extensions_dir.join("installed");
+   let download_dir = extensions_dir.join("downloads");
+
+   // Create installed directory if it doesn't exist
+   fs::create_dir_all(&installed_dir)
+      .map_err(|e| format!("Failed to create installed directory: {}", e))?;
+   fs::create_dir_all(&download_dir)
+      .map_err(|e| format!("Failed to create downloads directory: {}", e))?;
+
+   // Create extension directory
+   let extension_dir = installed_dir.join(&extension_id);
+   fs::create_dir_all(&extension_dir)
+      .map_err(|e| format!("Failed to create extension directory: {}", e))?;
+
+   // Copy WASM file to installed directory
+   let source_path = Path::new(&package_path);
+   let canonical_source = fs::canonicalize(source_path)
+      .map_err(|e| format!("Failed to resolve extension package path: {}", e))?;
+   let canonical_download_dir = fs::canonicalize(&download_dir)
+      .map_err(|e| format!("Failed to resolve downloads directory: {}", e))?;
+   if !canonical_source.starts_with(&canonical_download_dir) {
+      return Err("Extension package path is outside the downloads directory".to_string());
+   }
+   let target_path = extension_dir.join("extension.wasm");
+
+   fs::copy(&canonical_source, &target_path)
+      .map_err(|e| format!("Failed to copy extension file: {}", e))?;
+
+   // Clean up download
+   fs::remove_file(&canonical_source).ok();
+
+   Ok(())
+}
+
+#[command]
+pub fn uninstall_extension(extension_id: String) -> Result<(), String> {
+   validate_extension_id(&extension_id)?;
+
+   // Get extensions directory
+   let extensions_dir = get_extensions_dir()?;
+   let installed_dir = extensions_dir.join("installed");
+   let extension_dir = installed_dir.join(&extension_id);
+
+   // Check if extension exists
+   if !extension_dir.exists() {
+      return Err(format!("Extension {} is not installed", extension_id));
+   }
+
+   // Remove extension directory
+   fs::remove_dir_all(&extension_dir)
+      .map_err(|e| format!("Failed to remove extension directory: {}", e))?;
+
+   Ok(())
+}
+
+#[command]
+pub fn get_installed_extensions() -> Result<Vec<String>, String> {
+   // Get extensions directory
+   let extensions_dir = get_extensions_dir()?;
+   let installed_dir = extensions_dir.join("installed");
+
+   // Create installed directory if it doesn't exist
+   if !installed_dir.exists() {
+      return Ok(Vec::new());
+   }
+
+   // Read directory entries
+   let entries = fs::read_dir(&installed_dir)
+      .map_err(|e| format!("Failed to read installed directory: {}", e))?;
+
+   let mut extensions = Vec::new();
+
+   for entry in entries {
+      let entry = entry.map_err(|e| format!("Failed to read directory entry: {}", e))?;
+      let path = entry.path();
+
+      if path.is_dir()
+         && let Some(name) = path.file_name().and_then(|n| n.to_str())
+      {
+         extensions.push(name.to_string());
+      }
+   }
+
+   Ok(extensions)
+}
+
+fn get_extensions_dir() -> Result<PathBuf, String> {
+   // Get app data directory
+   let home_dir = dirs::home_dir().ok_or("Failed to get home directory")?;
+   let app_data_dir = home_dir.join(".coodi");
+
+   // Create app data directory if it doesn't exist
+   fs::create_dir_all(&app_data_dir)
+      .map_err(|e| format!("Failed to create app data directory: {}", e))?;
+
+   // Create extensions directory
+   let extensions_dir = app_data_dir.join("extensions");
+   fs::create_dir_all(&extensions_dir)
+      .map_err(|e| format!("Failed to create extensions directory: {}", e))?;
+
+   Ok(extensions_dir)
+}
+
+#[command]
+pub fn get_bundled_extensions_path<R: Runtime>(
+   app_handle: TauriAppHandle<R>,
+) -> Result<String, String> {
+   // In production, use Tauri's resource directory API
+   // In development, fall back to the source path
+   let extensions_path = if cfg!(debug_assertions) {
+      // Development mode: use source path
+      let mut cwd =
+         env::current_dir().map_err(|e| format!("Failed to get current directory: {}", e))?;
+
+      // If we're in src-tauri directory, go up one level to project root
+      if cwd.ends_with("src-tauri") {
+         cwd.pop();
+      }
+
+      cwd.join("src").join("extensions").join("bundled")
+   } else {
+      // Production mode: use Tauri's resource directory
+      use tauri::Manager;
+
+      let resource_path = app_handle
+         .path()
+         .resource_dir()
+         .map_err(|e| format!("Failed to get resource dir: {}", e))?;
+
+      resource_path.join("bundled")
+   };
+
+   log::info!("Bundled extensions path: {:?}", extensions_path);
+
+   Ok(extensions_path
+      .to_str()
+      .ok_or("Failed to convert path to string")?
+      .to_string())
+}
+
+// New installer commands using the ExtensionInstaller
+
+#[command]
+pub async fn install_extension_from_url(
+   app_handle: AppHandle,
+   extension_id: String,
+   url: String,
+   checksum: String,
+   size: u64,
+) -> Result<(), String> {
+   validate_extension_id(&extension_id)?;
+   validate_extension_download_url(&url)?;
+
+   log::info!("Installing extension {} from {}", extension_id, url);
+
+   let installer = ExtensionInstaller::new(app_handle)
+      .map_err(|e| format!("Failed to create installer: {}", e))?;
+
+   let download_info = DownloadInfo {
+      url,
+      checksum,
+      size,
+   };
+
+   installer
+      .install_extension(extension_id, download_info)
+      .await
+      .map_err(|e| format!("Failed to install extension: {}", e))
+}
+
+#[command]
+pub fn uninstall_extension_new(app_handle: AppHandle, extension_id: String) -> Result<(), String> {
+   validate_extension_id(&extension_id)?;
+
+   log::info!("Uninstalling extension {}", extension_id);
+
+   let installer = ExtensionInstaller::new(app_handle)
+      .map_err(|e| format!("Failed to create installer: {}", e))?;
+
+   installer
+      .uninstall_extension(&extension_id)
+      .map_err(|e| format!("Failed to uninstall extension: {}", e))
+}
+
+#[command]
+pub fn list_installed_extensions_new(
+   app_handle: AppHandle,
+) -> Result<Vec<ExtensionMetadata>, String> {
+   let installer = ExtensionInstaller::new(app_handle)
+      .map_err(|e| format!("Failed to create installer: {}", e))?;
+
+   installer
+      .list_installed_extensions()
+      .map_err(|e| format!("Failed to list extensions: {}", e))
+}
+
+#[command]
+pub fn get_extension_path(app_handle: AppHandle, extension_id: String) -> Result<String, String> {
+   validate_extension_id(&extension_id)?;
+
+   log::info!("Getting path for extension {}", extension_id);
+
+   let installer = ExtensionInstaller::new(app_handle)
+      .map_err(|e| format!("Failed to create installer: {}", e))?;
+
+   let path = installer.get_extension_dir(&extension_id);
+
+   Ok(path
+      .to_str()
+      .ok_or("Failed to convert path to string")?
+      .to_string())
+}
+
+#[command]
+pub fn read_extension_entrypoint(
+   app_handle: AppHandle,
+   extension_id: String,
+   entrypoint: String,
+) -> Result<String, String> {
+   validate_extension_id(&extension_id)?;
+   validate_extension_entrypoint(&entrypoint)?;
+
+   let installer = ExtensionInstaller::new(app_handle)
+      .map_err(|e| format!("Failed to create installer: {}", e))?;
+   let extension_dir = installer.get_extension_dir(&extension_id);
+   let entrypoint_path = extension_dir.join(entrypoint);
+   let canonical_extension_dir = extension_dir
+      .canonicalize()
+      .map_err(|e| format!("Failed to resolve extension directory: {e}"))?;
+   let canonical_entrypoint = entrypoint_path
+      .canonicalize()
+      .map_err(|e| format!("Failed to resolve extension entrypoint: {e}"))?;
+   if !canonical_entrypoint.starts_with(&canonical_extension_dir) {
+      return Err("Extension entrypoint escaped its installation directory".to_string());
+   }
+   let metadata = fs::metadata(&canonical_entrypoint)
+      .map_err(|e| format!("Failed to inspect extension entrypoint: {e}"))?;
+   if !metadata.is_file() || metadata.len() > 2 * 1024 * 1024 {
+      return Err("Extension entrypoint must be a file no larger than 2 MB".to_string());
+   }
+
+   fs::read_to_string(canonical_entrypoint)
+      .map_err(|e| format!("Failed to read extension entrypoint: {e}"))
+}
+
+#[command]
+pub fn get_extension_secret(
+   app_handle: AppHandle,
+   extension_id: String,
+   key: String,
+) -> Result<Option<String>, String> {
+   get_secret(&app_handle, &extension_secret_key(&extension_id, &key)?)
+}
+
+#[command]
+pub fn set_extension_secret(
+   app_handle: AppHandle,
+   extension_id: String,
+   key: String,
+   value: String,
+) -> Result<(), String> {
+   store_secret(
+      &app_handle,
+      &extension_secret_key(&extension_id, &key)?,
+      &value,
+   )
+}
+
+#[command]
+pub fn delete_extension_secret(
+   app_handle: AppHandle,
+   extension_id: String,
+   key: String,
+) -> Result<(), String> {
+   remove_secret(&app_handle, &extension_secret_key(&extension_id, &key)?)
+}
+
+#[cfg(test)]
+mod tests {
+   use super::*;
+   use std::path::Path;
+
+   #[test]
+   fn extension_secret_keys_are_scoped_and_validated() {
+      assert_eq!(
+         extension_secret_key("coodi.gitlab", "token").unwrap(),
+         "extension:coodi.gitlab:token"
+      );
+      assert!(extension_secret_key("coodi.gitlab", "../token").is_err());
+   }
+
+   #[test]
+   fn extension_entrypoints_must_be_relative_files() {
+      assert!(validate_extension_entrypoint("main.js").is_ok());
+      assert!(validate_extension_entrypoint("dist/main.js").is_ok());
+      assert!(validate_extension_entrypoint("../main.js").is_err());
+      assert!(validate_extension_entrypoint("/tmp/main.js").is_err());
+   }
+
+   #[test]
+   fn test_get_bundled_extensions_path_ends_with_bundled() {
+      // Create a mock Tauri app for testing
+      let app = tauri::test::mock_app();
+      let app_handle = app.handle().clone();
+
+      // Call the function
+      let result = get_bundled_extensions_path(app_handle);
+
+      // Verify it succeeds and the path ends with "bundled"
+      assert!(result.is_ok(), "get_bundled_extensions_path should succeed");
+      let path = result.unwrap();
+      let path = Path::new(&path);
+
+      // The path must end with "bundled", not "_up_/src/extensions/bundled"
+      // This verifies the fix for issue #475 where Linux builds had wrong paths
+      assert!(
+         path.ends_with("bundled"),
+         "Path should end with 'bundled', got: {:?}",
+         path
+      );
+
+      // Verify the path doesn't contain "_up_" which indicates incorrect Tauri resource bundling
+      assert!(
+         !path.to_string_lossy().contains("_up_"),
+         "Path should not contain '_up_' (incorrect bundling), got: {:?}",
+         path
+      );
+   }
+
+   #[test]
+   fn test_get_bundled_extensions_path_is_absolute_in_debug() {
+      let app = tauri::test::mock_app();
+      let app_handle = app.handle().clone();
+
+      let result = get_bundled_extensions_path(app_handle);
+      assert!(result.is_ok());
+
+      let path_str = result.unwrap();
+      let path = Path::new(&path_str);
+
+      // In debug mode, the path should be constructed from current_dir
+      // and should be an absolute path
+      assert!(
+         path.is_absolute(),
+         "Path should be absolute in debug mode, got: {:?}",
+         path
+      );
+   }
+
+   #[test]
+   fn test_get_bundled_extensions_path_contains_expected_structure() {
+      let app = tauri::test::mock_app();
+      let app_handle = app.handle().clone();
+
+      let result = get_bundled_extensions_path(app_handle);
+      assert!(result.is_ok());
+
+      let path_str = result.unwrap();
+
+      // In debug mode, path should contain src/extensions/bundled
+      // This is the development path structure
+      assert!(
+         path_str.contains("src")
+            && path_str.contains("extensions")
+            && path_str.ends_with("bundled"),
+         "Debug path should have structure .../src/extensions/bundled, got: {}",
+         path_str
+      );
+   }
+
+   #[test]
+   fn test_validate_extension_id_accepts_safe_ids() {
+      assert!(validate_extension_id("language.typescript").is_ok());
+      assert!(validate_extension_id("icon-theme_material").is_ok());
+      assert!(validate_extension_id("theme-1").is_ok());
+   }
+
+   #[test]
+   fn test_validate_extension_id_rejects_unsafe_ids() {
+      assert!(validate_extension_id("../evil").is_err());
+      assert!(validate_extension_id("evil/path").is_err());
+      assert!(validate_extension_id("evil\\path").is_err());
+      assert!(validate_extension_id("evil*id").is_err());
+      assert!(validate_extension_id("").is_err());
+   }
+
+   #[test]
+   fn test_validate_extension_download_url_rejects_unsafe_schemes() {
+      assert!(validate_extension_download_url("file:///tmp/evil.tar.gz").is_err());
+      assert!(validate_extension_download_url("javascript:alert(1)").is_err());
+      assert!(validate_extension_download_url("ftp://example.com/ext.tar.gz").is_err());
+   }
+
+   #[test]
+   fn test_validate_extension_download_url_accepts_expected_hosts() {
+      assert!(
+         validate_extension_download_url(
+            "https://www.mubashirhassan.com/coodi/extensions/test.tar.gz"
+         )
+         .is_ok()
+      );
+      assert!(
+         validate_extension_download_url("https://www.mubashirhassan.com/extensions/test.tar.gz")
+            .is_ok()
+      );
+
+      if cfg!(debug_assertions) {
+         assert!(validate_extension_download_url("http://localhost:3000/test.tar.gz").is_ok());
+      }
+   }
+
+   #[test]
+   fn test_is_allowed_extension_host_rejects_suffix_spoofing() {
+      assert!(is_allowed_extension_host("www.mubashirhassan.com"));
+      assert!(is_allowed_extension_host("www.mubashirhassan.com"));
+      assert!(is_allowed_extension_host("a.b.www.mubashirhassan.com"));
+      // Suffix-match spoofing attempts must be rejected.
+      assert!(!is_allowed_extension_host("evilwww.mubashirhassan.com"));
+      assert!(!is_allowed_extension_host(
+         "www.mubashirhassan.com.attacker.example"
+      ));
+      assert!(!is_allowed_extension_host("not-www.mubashirhassan.com"));
+      assert!(!is_allowed_extension_host(""));
+   }
+}

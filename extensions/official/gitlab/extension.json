@@ -1,0 +1,36 @@
+{
+  "id": "coodi.gitlab",
+  "name": "gitlab",
+  "displayName": "GitLab",
+  "description": "Review merge requests, issues, and pipelines for the current GitLab repository.",
+  "version": "1.0.0",
+  "publisher": "Coodi",
+  "categories": ["Integration"],
+  "integrations": [
+    {
+      "id": "gitlab",
+      "name": "GitLab",
+      "description": "GitLab projects, merge requests, issues, and pipelines",
+      "kind": "code-host",
+      "icon": "gitlab"
+    }
+  ],
+  "main": "main.js",
+  "permissions": {
+    "network": ["https://*", "http://localhost:*", "http://127.0.0.1:*"],
+    "secrets": true,
+    "workspace": "read",
+    "openExternal": true
+  },
+  "icon": "icon.svg",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://www.mubashirhassan.com/coodi"
+  },
+  "installation": {
+    "downloadUrl": "https://www.mubashirhassan.com/coodi/extensions/packages/integration/gitlab/coodi.gitlab.tar.gz",
+    "size": 11799,
+    "checksum": "29bbc0c5964335fe500df35288b138b1155b1553df8e3e600c1ac373610d1411"
+  }
+}

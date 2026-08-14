@@ -1,0 +1,17 @@
+{
+  "$schema": "https://www.mubashirhassan.com/coodi/schemas/extension.json",
+  "id": "coodi.ql",
+  "name": "QL",
+  "displayName": "QL",
+  "version": "1.0.0",
+  "description": "QL language support",
+  "publisher": "Coodi",
+  "categories": ["Language"],
+  "languages": [
+    {
+      "id": "ql",
+      "extensions": [".ql", ".qll"],
+      "aliases": ["QL", "CodeQL"]
+    }
+  ]
+}

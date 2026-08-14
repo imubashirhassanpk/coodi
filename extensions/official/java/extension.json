@@ -1,0 +1,24 @@
+{
+  "$schema": "https://www.mubashirhassan.com/coodi/schemas/extension.json",
+  "id": "coodi.java",
+  "name": "Java",
+  "displayName": "Java",
+  "version": "1.0.0",
+  "description": "Java language support with LSP",
+  "publisher": "Coodi",
+  "categories": ["Language"],
+  "languages": [
+    {
+      "id": "java",
+      "extensions": [".java"],
+      "aliases": ["Java"]
+    }
+  ],
+  "capabilities": {
+    "lsp": {
+      "name": "jdtls",
+      "runtime": "binary",
+      "args": []
+    }
+  }
+}

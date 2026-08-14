@@ -1,0 +1,17 @@
+{
+  "$schema": "https://www.mubashirhassan.com/coodi/schemas/extension.json",
+  "id": "coodi.tlaplus",
+  "name": "TLAPLUS",
+  "displayName": "TLA+",
+  "version": "1.0.0",
+  "description": "TLA+ language support",
+  "publisher": "Coodi",
+  "categories": ["Language"],
+  "languages": [
+    {
+      "id": "tlaplus",
+      "extensions": [".tla"],
+      "aliases": ["TLA+", "TLAPLUS", "tlaplus"]
+    }
+  ]
+}

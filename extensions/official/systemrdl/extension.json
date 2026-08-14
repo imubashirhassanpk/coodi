@@ -1,0 +1,17 @@
+{
+  "$schema": "https://www.mubashirhassan.com/coodi/schemas/extension.json",
+  "id": "coodi.systemrdl",
+  "name": "SystemRDL",
+  "displayName": "SystemRDL",
+  "version": "1.0.0",
+  "description": "SystemRDL language support",
+  "publisher": "Coodi",
+  "categories": ["Language"],
+  "languages": [
+    {
+      "id": "systemrdl",
+      "extensions": [".rdl"],
+      "aliases": ["SystemRDL", "systemrdl"]
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "productName": "Coodi Smoke",
+  "identifier": "com.code.coodi.smoke",
+  "bundle": {
+    "createUpdaterArtifacts": false,
+    "resources": null,
+    "macOS": {
+      "signingIdentity": null
+    }
+  },
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": ["coodi-smoke"]
+      }
+    },
+    "updater": {
+      "active": false
+    }
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "$schema": "https://www.mubashirhassan.com/coodi/schemas/extension.json",
+  "id": "coodi.xml",
+  "name": "XML",
+  "displayName": "XML",
+  "version": "1.0.0",
+  "description": "XML and SVG language support with syntax highlighting",
+  "publisher": "Coodi",
+  "categories": ["Language"],
+  "languages": [
+    {
+      "id": "xml",
+      "extensions": [
+        ".xml",
+        ".xsl",
+        ".xslt",
+        ".xsd",
+        ".dtd",
+        ".wsdl",
+        ".plist",
+        ".svg",
+        ".csproj",
+        ".vbproj",
+        ".fsproj",
+        ".props",
+        ".targets"
+      ],
+      "aliases": ["XML", "xml"],
+      "filenames": [".xml"]
+    }
+  ]
+}

@@ -1,0 +1,1181 @@
+use super::{
+   AcpConnection,
+   terminal_state::AcpTerminalState,
+   types::{
+      AcpContentBlock, AcpEvent, AcpPlanEntry, AcpPlanEntryPriority, AcpPlanEntryStatus,
+      AcpToolCallLocation, AcpToolCallStatus, AcpToolKind, AcpUsageUpdate, SessionConfigOption,
+      SessionConfigOptionKind, SessionConfigOptionValue, UiAction,
+   },
+   workspace_path::{path_to_string, resolve_path_against_workspace},
+};
+use crate::runtime::CoodiAppHandle as AppHandle;
+use agent_client_protocol::{self as acp_sdk, schema as acp};
+use coodi_terminal::{
+   TerminalConfig, TerminalEvent, TerminalEventHandler, TerminalManager, TerminalSize,
+};
+use std::{
+   collections::HashMap,
+   path::PathBuf,
+   sync::{Arc, Mutex as StdMutex},
+};
+use tauri::Emitter;
+use tokio::sync::{Mutex, mpsc, oneshot};
+
+/// Response for permission requests
+pub struct PermissionResponse {
+   pub request_id: String,
+   pub approved: bool,
+   pub cancelled: bool,
+   pub option_id: Option<String>,
+}
+
+/// Coodi ACP Client implementation
+/// Handles requests from the agent (file access, terminals, permissions)
+pub struct CoodiAcpClient {
+   app_handle: AppHandle,
+   workspace_path: Option<PathBuf>,
+   permission_tx: mpsc::Sender<PermissionResponse>,
+   permission_rx: Arc<Mutex<mpsc::Receiver<PermissionResponse>>>,
+   current_session_id: Arc<Mutex<Option<String>>>,
+   terminal_manager: Arc<TerminalManager>,
+   /// Maps ACP terminal IDs to terminal state (uses StdMutex for sync access from event listeners)
+   terminal_states: Arc<StdMutex<HashMap<String, AcpTerminalState>>>,
+}
+
+impl CoodiAcpClient {
+   pub fn new(
+      app_handle: AppHandle,
+      workspace_path: Option<PathBuf>,
+      terminal_manager: Arc<TerminalManager>,
+   ) -> Self {
+      let (permission_tx, permission_rx) = mpsc::channel(32);
+      Self {
+         app_handle,
+         workspace_path,
+         permission_tx,
+         permission_rx: Arc::new(Mutex::new(permission_rx)),
+         current_session_id: Arc::new(Mutex::new(None)),
+         terminal_manager,
+         terminal_states: Arc::new(StdMutex::new(HashMap::new())),
+      }
+   }
+
+   pub fn permission_sender(&self) -> mpsc::Sender<PermissionResponse> {
+      self.permission_tx.clone()
+   }
+
+   pub async fn set_session_id(&self, session_id: String) {
+      let mut current = self.current_session_id.lock().await;
+      *current = Some(session_id);
+   }
+
+   fn emit_event(&self, event: AcpEvent) {
+      if let Err(e) = self.app_handle.emit("acp-event", &event) {
+         log::error!("Failed to emit ACP event: {}", e);
+      }
+   }
+
+   fn resolve_path(&self, path: &str) -> PathBuf {
+      resolve_path_against_workspace(self.workspace_path.as_deref(), path)
+   }
+
+   fn extract_first_url(text: &str) -> Option<String> {
+      for scheme in ["https://", "http://"] {
+         if let Some(start) = text.find(scheme) {
+            let rest = &text[start..];
+            let end = rest
+               .find(|c: char| {
+                  c.is_whitespace()
+                     || matches!(c, '"' | '\'' | '`' | ')' | '}' | ']' | '|' | '<' | '>')
+               })
+               .unwrap_or(rest.len());
+            let url = rest[..end].trim_end_matches(['.', ',', ';']);
+            if !url.is_empty() {
+               return Some(url.to_string());
+            }
+         }
+      }
+      None
+   }
+
+   fn extract_json_string_fields(text: &str, field: &str) -> Vec<String> {
+      let mut values = Vec::new();
+      let needle = format!("\"{}\"", field);
+      let mut offset = 0usize;
+
+      while let Some(rel_idx) = text[offset..].find(&needle) {
+         let start = offset + rel_idx + needle.len();
+         let Some(colon_rel) = text[start..].find(':') else {
+            break;
+         };
+         let after_colon = start + colon_rel + 1;
+         let rest = &text[after_colon..];
+         let trimmed = rest.trim_start();
+         let ws = rest.len().saturating_sub(trimmed.len());
+         if !trimmed.starts_with('"') {
+            offset = after_colon + ws + 1;
+            continue;
+         }
+
+         let mut escaped = false;
+         let mut end = None;
+         for (i, ch) in trimmed[1..].char_indices() {
+            if escaped {
+               escaped = false;
+               continue;
+            }
+            if ch == '\\' {
+               escaped = true;
+               continue;
+            }
+            if ch == '"' {
+               end = Some(1 + i);
+               break;
+            }
+         }
+
+         if let Some(end_idx) = end {
+            let value = &trimmed[1..end_idx];
+            values.push(value.to_string());
+            offset = after_colon + ws + end_idx + 1;
+         } else {
+            break;
+         }
+      }
+
+      values
+   }
+
+   fn extract_webviewer_fallback_url(
+      tool_title: &str,
+      raw_input: Option<&serde_json::Value>,
+   ) -> Option<String> {
+      let raw_input_text = raw_input
+         .and_then(|value| serde_json::to_string(value).ok())
+         .unwrap_or_default();
+
+      let references_webviewer = tool_title.contains("coodi.openWebViewer")
+         || raw_input_text.contains("coodi.openWebViewer")
+         || (raw_input_text.contains("openWebViewer") && raw_input_text.contains("ext_method"));
+
+      if !references_webviewer {
+         return None;
+      }
+
+      Self::extract_first_url(tool_title).or_else(|| Self::extract_first_url(&raw_input_text))
+   }
+
+   fn extract_terminal_fallback_command(
+      tool_title: &str,
+      raw_input: Option<&serde_json::Value>,
+   ) -> Option<String> {
+      let raw_input_text = raw_input
+         .and_then(|value| serde_json::to_string(value).ok())
+         .unwrap_or_default();
+
+      let references_terminal = tool_title.contains("coodi.openTerminal")
+         || raw_input_text.contains("coodi.openTerminal")
+         || (raw_input_text.contains("openTerminal") && raw_input_text.contains("ext_method"));
+
+      if !references_terminal {
+         return None;
+      }
+
+      let candidates = Self::extract_json_string_fields(&raw_input_text, "command");
+      for candidate in candidates {
+         let candidate = candidate.trim();
+         if candidate.is_empty() {
+            continue;
+         }
+         if candidate.contains("ext_method") || candidate.contains("coodi.openTerminal") {
+            continue;
+         }
+         return Some(candidate.to_string());
+      }
+
+      if raw_input_text.contains("lazygit") || tool_title.contains("lazygit") {
+         return Some("lazygit".to_string());
+      }
+
+      None
+   }
+
+   fn fallback_permission_response(
+      args: &acp::RequestPermissionRequest,
+   ) -> acp::RequestPermissionResponse {
+      let selected_option = args
+         .options
+         .iter()
+         .find(|opt| {
+            matches!(
+               opt.kind,
+               acp::PermissionOptionKind::RejectOnce | acp::PermissionOptionKind::RejectAlways
+            )
+         })
+         .or_else(|| args.options.first())
+         .map(|opt| acp::SelectedPermissionOutcome::new(opt.option_id.clone()));
+
+      if let Some(selected) = selected_option {
+         acp::RequestPermissionResponse::new(acp::RequestPermissionOutcome::Selected(selected))
+      } else {
+         acp::RequestPermissionResponse::new(acp::RequestPermissionOutcome::Cancelled)
+      }
+   }
+
+   fn map_plan_priority(priority: acp::PlanEntryPriority) -> AcpPlanEntryPriority {
+      match priority {
+         acp::PlanEntryPriority::High => AcpPlanEntryPriority::High,
+         acp::PlanEntryPriority::Medium => AcpPlanEntryPriority::Medium,
+         acp::PlanEntryPriority::Low => AcpPlanEntryPriority::Low,
+         _ => AcpPlanEntryPriority::Medium,
+      }
+   }
+
+   fn map_plan_status(status: acp::PlanEntryStatus) -> AcpPlanEntryStatus {
+      match status {
+         acp::PlanEntryStatus::Pending => AcpPlanEntryStatus::Pending,
+         acp::PlanEntryStatus::InProgress => AcpPlanEntryStatus::InProgress,
+         acp::PlanEntryStatus::Completed => AcpPlanEntryStatus::Completed,
+         _ => AcpPlanEntryStatus::Pending,
+      }
+   }
+
+   fn map_content_block(content: acp::ContentBlock) -> Option<AcpContentBlock> {
+      match content {
+         acp::ContentBlock::Text(text) => Some(AcpContentBlock::Text { text: text.text }),
+         acp::ContentBlock::Image(img) => Some(AcpContentBlock::Image {
+            data: img.data,
+            media_type: img.mime_type,
+         }),
+         acp::ContentBlock::Audio(audio) => Some(AcpContentBlock::Audio {
+            data: audio.data,
+            media_type: audio.mime_type,
+         }),
+         acp::ContentBlock::ResourceLink(link) => Some(AcpContentBlock::Resource {
+            uri: link.uri,
+            name: Some(link.name),
+            mime_type: link.mime_type,
+            text: None,
+            blob: None,
+            title: link.title,
+            description: link.description,
+            size: link.size,
+         }),
+         acp::ContentBlock::Resource(resource) => match resource.resource {
+            acp::EmbeddedResourceResource::TextResourceContents(text) => {
+               Some(AcpContentBlock::Resource {
+                  uri: text.uri,
+                  name: None,
+                  mime_type: text.mime_type,
+                  text: Some(text.text),
+                  blob: None,
+                  title: None,
+                  description: None,
+                  size: None,
+               })
+            }
+            acp::EmbeddedResourceResource::BlobResourceContents(blob) => {
+               Some(AcpContentBlock::Resource {
+                  uri: blob.uri,
+                  name: None,
+                  mime_type: blob.mime_type,
+                  text: None,
+                  blob: Some(blob.blob),
+                  title: None,
+                  description: None,
+                  size: None,
+               })
+            }
+            _ => None,
+         },
+         _ => None,
+      }
+   }
+
+   fn map_tool_content(content: Vec<acp::ToolCallContent>) -> Option<serde_json::Value> {
+      if content.is_empty() {
+         return None;
+      }
+
+      serde_json::to_value(content).ok()
+   }
+
+   fn map_tool_output(
+      content: Vec<acp::ToolCallContent>,
+      raw_output: Option<serde_json::Value>,
+   ) -> Option<serde_json::Value> {
+      raw_output.or_else(|| Self::map_tool_content(content))
+   }
+
+   fn map_tool_kind(kind: acp::ToolKind) -> AcpToolKind {
+      match kind {
+         acp::ToolKind::Read => AcpToolKind::Read,
+         acp::ToolKind::Edit => AcpToolKind::Edit,
+         acp::ToolKind::Delete => AcpToolKind::Delete,
+         acp::ToolKind::Move => AcpToolKind::Move,
+         acp::ToolKind::Search => AcpToolKind::Search,
+         acp::ToolKind::Execute => AcpToolKind::Execute,
+         acp::ToolKind::Think => AcpToolKind::Think,
+         acp::ToolKind::Fetch => AcpToolKind::Fetch,
+         acp::ToolKind::SwitchMode => AcpToolKind::SwitchMode,
+         _ => AcpToolKind::Other,
+      }
+   }
+
+   fn map_tool_status(status: acp::ToolCallStatus) -> AcpToolCallStatus {
+      match status {
+         acp::ToolCallStatus::Pending => AcpToolCallStatus::Pending,
+         acp::ToolCallStatus::InProgress => AcpToolCallStatus::InProgress,
+         acp::ToolCallStatus::Completed => AcpToolCallStatus::Completed,
+         acp::ToolCallStatus::Failed => AcpToolCallStatus::Failed,
+         _ => AcpToolCallStatus::Pending,
+      }
+   }
+
+   fn map_tool_locations(locations: Vec<acp::ToolCallLocation>) -> Vec<AcpToolCallLocation> {
+      locations
+         .into_iter()
+         .map(|location| AcpToolCallLocation {
+            path: location.path.display().to_string(),
+            line: location.line,
+         })
+         .collect()
+   }
+
+   pub(crate) fn map_session_config_option(
+      option: acp::SessionConfigOption,
+   ) -> Option<SessionConfigOption> {
+      let kind = match option.kind {
+         acp::SessionConfigKind::Select(select) => SessionConfigOptionKind::Select {
+            current_value: select.current_value.to_string(),
+            options: match select.options {
+               acp::SessionConfigSelectOptions::Ungrouped(options) => options,
+               acp::SessionConfigSelectOptions::Grouped(groups) => {
+                  groups.into_iter().flat_map(|group| group.options).collect()
+               }
+               _ => Vec::new(),
+            }
+            .into_iter()
+            .map(|value| SessionConfigOptionValue {
+               id: value.value.to_string(),
+               name: value.name,
+               description: value.description,
+            })
+            .collect(),
+         },
+         _ => return None,
+      };
+
+      Some(SessionConfigOption {
+         id: option.id.to_string(),
+         name: option.name,
+         description: option.description,
+         category: option.category.map(|category| match category {
+            acp::SessionConfigOptionCategory::Mode => "mode".to_string(),
+            acp::SessionConfigOptionCategory::Model => "model".to_string(),
+            acp::SessionConfigOptionCategory::ThoughtLevel => "thought_level".to_string(),
+            acp::SessionConfigOptionCategory::Other(category) => category,
+            _ => "other".to_string(),
+         }),
+         kind,
+      })
+   }
+}
+
+impl CoodiAcpClient {
+   pub async fn handle_agent_request(
+      &self,
+      request: acp::AgentRequest,
+   ) -> acp_sdk::Result<acp::ClientResponse> {
+      match request {
+         acp::AgentRequest::WriteTextFileRequest(request) => self
+            .write_text_file(request)
+            .await
+            .map(acp::ClientResponse::WriteTextFileResponse),
+         acp::AgentRequest::ReadTextFileRequest(request) => self
+            .read_text_file(request)
+            .await
+            .map(acp::ClientResponse::ReadTextFileResponse),
+         acp::AgentRequest::RequestPermissionRequest(request) => self
+            .request_permission(request)
+            .await
+            .map(acp::ClientResponse::RequestPermissionResponse),
+         acp::AgentRequest::CreateTerminalRequest(request) => self
+            .create_terminal(request)
+            .await
+            .map(acp::ClientResponse::CreateTerminalResponse),
+         acp::AgentRequest::TerminalOutputRequest(request) => self
+            .terminal_output(request)
+            .await
+            .map(acp::ClientResponse::TerminalOutputResponse),
+         acp::AgentRequest::ReleaseTerminalRequest(request) => self
+            .release_terminal(request)
+            .await
+            .map(acp::ClientResponse::ReleaseTerminalResponse),
+         acp::AgentRequest::WaitForTerminalExitRequest(request) => self
+            .wait_for_terminal_exit(request)
+            .await
+            .map(acp::ClientResponse::WaitForTerminalExitResponse),
+         acp::AgentRequest::KillTerminalRequest(request) => self
+            .kill_terminal_command(request)
+            .await
+            .map(acp::ClientResponse::KillTerminalResponse),
+         acp::AgentRequest::ExtMethodRequest(request) => self
+            .ext_method(request)
+            .await
+            .map(acp::ClientResponse::ExtMethodResponse),
+         request => {
+            log::warn!("Unsupported ACP client request: {}", request.method());
+            Err(acp_sdk::Error::method_not_found())
+         }
+      }
+   }
+
+   pub async fn handle_agent_notification(
+      &self,
+      notification: acp::AgentNotification,
+      _connection: AcpConnection,
+   ) -> acp_sdk::Result<()> {
+      match notification {
+         acp::AgentNotification::SessionNotification(notification) => {
+            self.session_notification(notification).await
+         }
+         acp::AgentNotification::ExtNotification(notification) => {
+            self.ext_notification(notification).await
+         }
+         notification => {
+            log::warn!("Unhandled ACP agent notification: {:?}", notification);
+            Ok(())
+         }
+      }
+   }
+
+   async fn request_permission(
+      &self,
+      args: acp::RequestPermissionRequest,
+   ) -> acp::Result<acp::RequestPermissionResponse> {
+      let request_id = uuid::Uuid::new_v4().to_string();
+      let session_id = args.session_id.to_string();
+
+      // Extract tool call info for the permission request
+      let tool_call_id = args.tool_call.tool_call_id.clone();
+      let tool_title = args
+         .tool_call
+         .fields
+         .title
+         .as_deref()
+         .unwrap_or("Tool call");
+      let fallback_webviewer_url =
+         Self::extract_webviewer_fallback_url(tool_title, args.tool_call.fields.raw_input.as_ref());
+      let fallback_terminal_command = Self::extract_terminal_fallback_command(
+         tool_title,
+         args.tool_call.fields.raw_input.as_ref(),
+      );
+
+      // Emit permission request to frontend
+      self.emit_event(AcpEvent::PermissionRequest {
+         request_id: request_id.clone(),
+         permission_type: "tool_call".to_string(),
+         resource: tool_call_id.to_string(),
+         description: format!("{} ({})", tool_title, tool_call_id),
+         options: args
+            .options
+            .iter()
+            .map(|option| super::types::AcpPermissionOption {
+               id: option.option_id.to_string(),
+               name: option.name.clone(),
+               kind: match option.kind {
+                  acp::PermissionOptionKind::AllowOnce => {
+                     super::types::AcpPermissionOptionKind::AllowOnce
+                  }
+                  acp::PermissionOptionKind::AllowAlways => {
+                     super::types::AcpPermissionOptionKind::AllowAlways
+                  }
+                  acp::PermissionOptionKind::RejectOnce => {
+                     super::types::AcpPermissionOptionKind::RejectOnce
+                  }
+                  acp::PermissionOptionKind::RejectAlways => {
+                     super::types::AcpPermissionOptionKind::RejectAlways
+                  }
+                  _ => super::types::AcpPermissionOptionKind::RejectOnce,
+               },
+            })
+            .collect(),
+      });
+
+      // Wait for user response with timeout
+      let mut rx = self.permission_rx.lock().await;
+      match tokio::time::timeout(std::time::Duration::from_secs(300), async {
+         while let Some(response) = rx.recv().await {
+            if response.request_id == request_id {
+               return Some(response);
+            }
+         }
+         None
+      })
+      .await
+      {
+         Ok(Some(response)) => {
+            if response.cancelled {
+               return Ok(acp::RequestPermissionResponse::new(
+                  acp::RequestPermissionOutcome::Cancelled,
+               ));
+            }
+
+            if let Some(option_id) = response.option_id {
+               return Ok(acp::RequestPermissionResponse::new(
+                  acp::RequestPermissionOutcome::Selected(acp::SelectedPermissionOutcome::new(
+                     option_id,
+                  )),
+               ));
+            }
+
+            if response.approved {
+               if let Some(url) = fallback_webviewer_url.clone() {
+                  // Some ACP adapters may try to invoke ext_method via shell command.
+                  // Execute the equivalent Coodi UI action directly and reject the shell tool call.
+                  self.emit_event(AcpEvent::UiAction {
+                     session_id: session_id.clone(),
+                     action: UiAction::OpenWebViewer { url },
+                  });
+                  return Ok(Self::fallback_permission_response(&args));
+               }
+
+               if let Some(command) = fallback_terminal_command.clone() {
+                  // Same fallback for coodi.openTerminal misuse through shell commands.
+                  self.emit_event(AcpEvent::UiAction {
+                     session_id: session_id.clone(),
+                     action: UiAction::OpenTerminal {
+                        command: Some(command),
+                     },
+                  });
+                  return Ok(Self::fallback_permission_response(&args));
+               }
+
+               // Prefer allow-once/allow-always options if available
+               let selected_option = args
+                  .options
+                  .iter()
+                  .find(|opt| {
+                     matches!(
+                        opt.kind,
+                        acp::PermissionOptionKind::AllowOnce
+                           | acp::PermissionOptionKind::AllowAlways
+                     )
+                  })
+                  .or_else(|| args.options.first())
+                  .map(|opt| acp::SelectedPermissionOutcome::new(opt.option_id.clone()));
+
+               if let Some(selected) = selected_option {
+                  Ok(acp::RequestPermissionResponse::new(
+                     acp::RequestPermissionOutcome::Selected(selected),
+                  ))
+               } else {
+                  Ok(acp::RequestPermissionResponse::new(
+                     acp::RequestPermissionOutcome::Cancelled,
+                  ))
+               }
+            } else {
+               // Prefer reject-once/reject-always options if available
+               let selected_option = args
+                  .options
+                  .iter()
+                  .find(|opt| {
+                     matches!(
+                        opt.kind,
+                        acp::PermissionOptionKind::RejectOnce
+                           | acp::PermissionOptionKind::RejectAlways
+                     )
+                  })
+                  .or_else(|| args.options.first())
+                  .map(|opt| acp::SelectedPermissionOutcome::new(opt.option_id.clone()));
+
+               if let Some(selected) = selected_option {
+                  Ok(acp::RequestPermissionResponse::new(
+                     acp::RequestPermissionOutcome::Selected(selected),
+                  ))
+               } else {
+                  Ok(acp::RequestPermissionResponse::new(
+                     acp::RequestPermissionOutcome::Cancelled,
+                  ))
+               }
+            }
+         }
+         _ => Ok(acp::RequestPermissionResponse::new(
+            acp::RequestPermissionOutcome::Cancelled,
+         )),
+      }
+   }
+
+   async fn session_notification(&self, args: acp::SessionNotification) -> acp::Result<()> {
+      let session_id = args.session_id.to_string();
+
+      match args.update {
+         acp::SessionUpdate::UserMessageChunk(chunk) => {
+            let Some(content) = Self::map_content_block(chunk.content) else {
+               return Ok(());
+            };
+
+            self.emit_event(AcpEvent::UserMessageChunk {
+               session_id,
+               content,
+               is_complete: false,
+            });
+         }
+         acp::SessionUpdate::AgentMessageChunk(chunk) => {
+            let Some(content) = Self::map_content_block(chunk.content) else {
+               return Ok(());
+            };
+
+            self.emit_event(AcpEvent::ContentChunk {
+               session_id,
+               content,
+               is_complete: false,
+            });
+         }
+         acp::SessionUpdate::AgentThoughtChunk(chunk) => {
+            let Some(content) = Self::map_content_block(chunk.content) else {
+               return Ok(());
+            };
+
+            self.emit_event(AcpEvent::ThoughtChunk {
+               session_id,
+               content,
+               is_complete: false,
+            });
+         }
+         acp::SessionUpdate::ToolCall(tool_call) => {
+            let tool_id = tool_call.tool_call_id.to_string();
+            let tool_name = tool_call.title.clone();
+            let status = tool_call.status;
+            let kind = tool_call.kind;
+            let raw_output = tool_call.raw_output.clone();
+            let content = tool_call.content.clone();
+
+            // Prefer raw_input; fallback to content serialization for display/debugging.
+            let input = tool_call.raw_input.clone().unwrap_or_else(|| {
+               if tool_call.content.is_empty() {
+                  serde_json::Value::Null
+               } else {
+                  serde_json::to_value(&tool_call.content).unwrap_or(serde_json::Value::Null)
+               }
+            });
+
+            self.emit_event(AcpEvent::ToolStart {
+               session_id: session_id.clone(),
+               tool_name,
+               tool_id: tool_id.clone(),
+               input,
+               kind: Self::map_tool_kind(kind),
+               status: Self::map_tool_status(status),
+               locations: Self::map_tool_locations(tool_call.locations),
+            });
+
+            if matches!(
+               status,
+               acp::ToolCallStatus::Completed | acp::ToolCallStatus::Failed
+            ) {
+               self.emit_event(AcpEvent::ToolComplete {
+                  session_id,
+                  tool_id,
+                  success: matches!(status, acp::ToolCallStatus::Completed),
+                  output: Self::map_tool_output(content, raw_output),
+                  error: if matches!(status, acp::ToolCallStatus::Failed) {
+                     Some("Tool call failed".to_string())
+                  } else {
+                     None
+                  },
+               });
+            }
+         }
+         acp::SessionUpdate::ToolCallUpdate(update) => {
+            let status = update.fields.status;
+            let raw_output = update.fields.raw_output.clone();
+            let content = update.fields.content.clone().unwrap_or_default();
+            let output = Self::map_tool_output(content.clone(), raw_output.clone());
+            let error = if matches!(status, Some(acp::ToolCallStatus::Failed)) {
+               Some("Tool call failed".to_string())
+            } else {
+               None
+            };
+
+            self.emit_event(AcpEvent::ToolUpdate {
+               session_id: session_id.clone(),
+               tool_id: update.tool_call_id.to_string(),
+               tool_name: update.fields.title.clone(),
+               input: update.fields.raw_input.clone(),
+               output: output.clone(),
+               kind: update.fields.kind.map(Self::map_tool_kind),
+               status: status.map(Self::map_tool_status),
+               locations: update
+                  .fields
+                  .locations
+                  .clone()
+                  .map(Self::map_tool_locations),
+               error: error.clone(),
+            });
+
+            match status {
+               Some(acp::ToolCallStatus::Completed) => {
+                  self.emit_event(AcpEvent::ToolComplete {
+                     session_id,
+                     tool_id: update.tool_call_id.to_string(),
+                     success: true,
+                     output,
+                     error: None,
+                  });
+               }
+               Some(acp::ToolCallStatus::Failed) => {
+                  self.emit_event(AcpEvent::ToolComplete {
+                     session_id,
+                     tool_id: update.tool_call_id.to_string(),
+                     success: false,
+                     output,
+                     error,
+                  });
+               }
+               _ => {}
+            }
+         }
+         acp::SessionUpdate::CurrentModeUpdate(update) => {
+            // Handle current mode change
+            self.emit_event(AcpEvent::CurrentModeUpdate {
+               session_id,
+               current_mode_id: update.current_mode_id.to_string(),
+            });
+         }
+         acp::SessionUpdate::ConfigOptionUpdate(update) => {
+            self.emit_event(AcpEvent::ConfigOptionsUpdate {
+               session_id,
+               config_options: update
+                  .config_options
+                  .into_iter()
+                  .filter_map(Self::map_session_config_option)
+                  .collect(),
+            });
+         }
+         acp::SessionUpdate::SessionInfoUpdate(update) => {
+            self.emit_event(AcpEvent::SessionInfoUpdate {
+               session_id,
+               title: update.title.take(),
+               updated_at: update.updated_at.take(),
+            });
+         }
+         acp::SessionUpdate::AvailableCommandsUpdate(commands_update) => {
+            self.emit_event(AcpEvent::SlashCommandsUpdate {
+               session_id,
+               commands: commands_update
+                  .available_commands
+                  .iter()
+                  .map(|c| super::types::SlashCommand {
+                     name: c.name.clone(),
+                     description: c.description.clone(),
+                     input: c.input.as_ref().and_then(|input| {
+                        // Extract hint from unstructured command input
+                        if let acp::AvailableCommandInput::Unstructured(unstructured) = input {
+                           Some(super::types::SlashCommandInput {
+                              hint: unstructured.hint.clone(),
+                           })
+                        } else {
+                           None
+                        }
+                     }),
+                  })
+                  .collect(),
+            });
+         }
+         acp::SessionUpdate::Plan(plan) => {
+            self.emit_event(AcpEvent::PlanUpdate {
+               session_id,
+               entries: plan
+                  .entries
+                  .into_iter()
+                  .map(|entry| AcpPlanEntry {
+                     content: entry.content,
+                     priority: Self::map_plan_priority(entry.priority),
+                     status: Self::map_plan_status(entry.status),
+                  })
+                  .collect(),
+            });
+         }
+         acp::SessionUpdate::UsageUpdate(usage) => {
+            log::info!(
+               "ACP usage update: session={}, used={}, size={}",
+               session_id,
+               usage.used,
+               usage.size
+            );
+            self.emit_event(AcpEvent::UsageUpdate {
+               session_id,
+               usage: AcpUsageUpdate {
+                  used: usage.used,
+                  size: usage.size,
+               },
+            });
+         }
+         update => {
+            log::warn!(
+               "Unhandled ACP session update for {}: {:?}",
+               session_id,
+               update
+            );
+         }
+      }
+      Ok(())
+   }
+
+   async fn read_text_file(
+      &self,
+      args: acp::ReadTextFileRequest,
+   ) -> acp::Result<acp::ReadTextFileResponse> {
+      let path_str = args.path.to_string_lossy();
+      let path = self.resolve_path(&path_str);
+      match tokio::fs::read_to_string(&path).await {
+         Ok(content) => {
+            // Handle line and limit parameters for partial file reading
+            let result = if args.line.is_some() || args.limit.is_some() {
+               let lines: Vec<&str> = content.lines().collect();
+               let start_line = args.line.unwrap_or(1).saturating_sub(1) as usize;
+               let limit = args.limit.map(|l| l as usize).unwrap_or(lines.len());
+
+               lines
+                  .iter()
+                  .skip(start_line)
+                  .take(limit)
+                  .copied()
+                  .collect::<Vec<_>>()
+                  .join("\n")
+            } else {
+               content
+            };
+            Ok(acp::ReadTextFileResponse::new(result))
+         }
+         Err(e) => Err(acp::Error::new(
+            -32603,
+            format!("Failed to read file: {}", e),
+         )),
+      }
+   }
+
+   async fn write_text_file(
+      &self,
+      args: acp::WriteTextFileRequest,
+   ) -> acp::Result<acp::WriteTextFileResponse> {
+      let path_str = args.path.to_string_lossy();
+      let path = self.resolve_path(&path_str);
+
+      // Create parent directories if needed
+      if let Some(parent) = path.parent()
+         && let Err(e) = tokio::fs::create_dir_all(parent).await
+      {
+         log::warn!("Failed to create parent directories: {}", e);
+      }
+
+      match tokio::fs::write(&path, &args.content).await {
+         Ok(_) => {
+            // Emit file change event so frontend can refresh
+            let _ = self
+               .app_handle
+               .emit("file-changed", path.to_string_lossy().to_string());
+            Ok(acp::WriteTextFileResponse::new())
+         }
+         Err(e) => Err(acp::Error::new(
+            -32603,
+            format!("Failed to write file: {}", e),
+         )),
+      }
+   }
+
+   async fn create_terminal(
+      &self,
+      args: acp::CreateTerminalRequest,
+   ) -> acp::Result<acp::CreateTerminalResponse> {
+      if args.command.trim().is_empty() {
+         return Err(acp::Error::new(
+            -32602,
+            "terminal/create command must not be empty".to_string(),
+         ));
+      }
+
+      let working_dir = args
+         .cwd
+         .as_ref()
+         .map(|p| p.to_string_lossy().to_string())
+         .or_else(|| self.workspace_path.as_deref().map(path_to_string));
+
+      let env_map: Option<HashMap<String, String>> = if args.env.is_empty() {
+         None
+      } else {
+         Some(
+            args
+               .env
+               .iter()
+               .map(|e| (e.name.clone(), e.value.clone()))
+               .collect(),
+         )
+      };
+      let command = args.command.clone();
+      let command_args = if args.args.is_empty() {
+         None
+      } else {
+         Some(args.args.clone())
+      };
+
+      let config = TerminalConfig {
+         working_directory: working_dir,
+         shell: None,
+         wsl_distribution: None,
+         wsl_working_directory: None,
+         environment: env_map,
+         command: Some(command),
+         args: command_args,
+         size: TerminalSize::default(),
+         term_program_version: Some(self.app_handle.package_info().version.to_string()),
+      };
+
+      let states_for_events = self.terminal_states.clone();
+      let pending_events = Arc::new(StdMutex::new(Vec::<(String, TerminalEvent)>::new()));
+      let pending_events_for_handler = pending_events.clone();
+      let event_handler: TerminalEventHandler = Arc::new(move |terminal_id, event| {
+         let Ok(mut states) = states_for_events.lock() else {
+            return false;
+         };
+
+         if let Some(state) = states.get_mut(terminal_id) {
+            state.handle_event(event);
+         } else if let Ok(mut pending) = pending_events_for_handler.lock() {
+            pending.push((terminal_id.to_string(), event));
+         }
+         true
+      });
+
+      match self.terminal_manager.create_terminal(config, event_handler) {
+         Ok(coodi_terminal_id) => {
+            let terminal_id = coodi_terminal_id.clone();
+            let output_limit = args.output_byte_limit.map(|l| l as u32);
+            let state = AcpTerminalState::new(coodi_terminal_id.clone(), output_limit);
+            {
+               let mut states = self.terminal_states.lock().unwrap();
+               states.insert(terminal_id.clone(), state);
+               if let Ok(mut pending) = pending_events.lock() {
+                  for (_, event) in pending.drain(..).filter(|(id, _)| id == &terminal_id) {
+                     if let Some(state) = states.get_mut(&terminal_id) {
+                        state.handle_event(event);
+                     }
+                  }
+               }
+            }
+
+            log::info!("ACP terminal created: {}", terminal_id);
+            Ok(acp::CreateTerminalResponse::new(terminal_id))
+         }
+         Err(e) => {
+            log::error!("Failed to create ACP terminal: {}", e);
+            Err(acp::Error::new(
+               -32603,
+               format!("Failed to create terminal: {}", e),
+            ))
+         }
+      }
+   }
+
+   async fn terminal_output(
+      &self,
+      args: acp::TerminalOutputRequest,
+   ) -> acp::Result<acp::TerminalOutputResponse> {
+      let terminal_id = args.terminal_id.to_string();
+      let mut states = self
+         .terminal_states
+         .lock()
+         .map_err(|_| acp::Error::new(-32603, "Lock poisoned".to_string()))?;
+
+      let state = states
+         .get_mut(&terminal_id)
+         .ok_or_else(|| acp::Error::new(-32603, "Terminal not found".to_string()))?;
+
+      let output = std::mem::take(&mut state.output_buffer);
+      let truncated = state.truncated;
+      state.truncated = false;
+
+      Ok(acp::TerminalOutputResponse::new(output, truncated).exit_status(state.exit_status.clone()))
+   }
+
+   async fn release_terminal(
+      &self,
+      args: acp::ReleaseTerminalRequest,
+   ) -> acp::Result<acp::ReleaseTerminalResponse> {
+      let terminal_id = args.terminal_id.to_string();
+      let removed_state = {
+         let mut states = self
+            .terminal_states
+            .lock()
+            .map_err(|_| acp::Error::new(-32603, "Lock poisoned".to_string()))?;
+         if let Some(state) = states.get_mut(&terminal_id)
+            && state.exit_status.is_none()
+         {
+            state.set_exit_status(Some(1), Some("released".to_string()));
+         }
+         states.remove(&terminal_id)
+      };
+
+      if let Some(state) = removed_state {
+         if let Err(e) = self
+            .terminal_manager
+            .close_terminal(&state.coodi_terminal_id)
+         {
+            log::warn!("Failed to close terminal {}: {}", terminal_id, e);
+         }
+      }
+
+      Ok(acp::ReleaseTerminalResponse::new())
+   }
+
+   async fn wait_for_terminal_exit(
+      &self,
+      args: acp::WaitForTerminalExitRequest,
+   ) -> acp::Result<acp::WaitForTerminalExitResponse> {
+      let terminal_id = args.terminal_id.to_string();
+
+      let receiver = {
+         let mut states = self
+            .terminal_states
+            .lock()
+            .map_err(|_| acp::Error::new(-32603, "Lock poisoned".to_string()))?;
+
+         let state = states
+            .get_mut(&terminal_id)
+            .ok_or_else(|| acp::Error::new(-32603, "Terminal not found".to_string()))?;
+
+         if let Some(status) = state.exit_status.clone() {
+            return Ok(acp::WaitForTerminalExitResponse::new(status));
+         }
+
+         let (tx, rx) = oneshot::channel();
+         state.exit_waiters.push(tx);
+         rx
+      };
+
+      match receiver.await {
+         Ok(status) => Ok(acp::WaitForTerminalExitResponse::new(status)),
+         Err(_) => {
+            let exit_status = acp::TerminalExitStatus::new().exit_code(1);
+            Ok(acp::WaitForTerminalExitResponse::new(exit_status))
+         }
+      }
+   }
+
+   async fn kill_terminal_command(
+      &self,
+      args: acp::KillTerminalRequest,
+   ) -> acp::Result<acp::KillTerminalResponse> {
+      let terminal_id = args.terminal_id.to_string();
+      let coodi_id = {
+         let states = self
+            .terminal_states
+            .lock()
+            .map_err(|_| acp::Error::new(-32603, "Lock poisoned".to_string()))?;
+         states
+            .get(&terminal_id)
+            .map(|s| s.coodi_terminal_id.clone())
+      };
+
+      if let Some(coodi_terminal_id) = coodi_id
+         && let Err(e) = self.terminal_manager.kill_terminal(&coodi_terminal_id)
+      {
+         log::warn!("Failed to kill terminal {}: {}", terminal_id, e);
+      }
+
+      {
+         let mut states = self
+            .terminal_states
+            .lock()
+            .map_err(|_| acp::Error::new(-32603, "Lock poisoned".to_string()))?;
+         if let Some(state) = states.get_mut(&terminal_id) {
+            state.set_exit_status(Some(1), Some("killed".to_string()));
+         }
+      }
+
+      Ok(acp::KillTerminalResponse::new())
+   }
+
+   async fn ext_method(&self, args: acp::ExtRequest) -> acp::Result<acp::ExtResponse> {
+      let session_id = self
+         .current_session_id
+         .lock()
+         .await
+         .clone()
+         .unwrap_or_default();
+
+      // Parse params from RawValue to Value for easier access
+      let params: serde_json::Value =
+         serde_json::from_str(args.params.get()).unwrap_or(serde_json::Value::Null);
+
+      match &*args.method {
+         "coodi.openWebViewer" => {
+            let url = params
+               .get("url")
+               .and_then(|v| v.as_str())
+               .unwrap_or("about:blank")
+               .to_string();
+
+            self.emit_event(AcpEvent::UiAction {
+               session_id,
+               action: UiAction::OpenWebViewer { url },
+            });
+
+            let response = serde_json::json!({ "success": true });
+            Ok(acp::ExtResponse::new(
+               serde_json::value::to_raw_value(&response).unwrap().into(),
+            ))
+         }
+         "coodi.openTerminal" => {
+            let command = params
+               .get("command")
+               .and_then(|v| v.as_str())
+               .map(|s| s.to_string());
+
+            self.emit_event(AcpEvent::UiAction {
+               session_id,
+               action: UiAction::OpenTerminal { command },
+            });
+
+            let response = serde_json::json!({ "success": true });
+            Ok(acp::ExtResponse::new(
+               serde_json::value::to_raw_value(&response).unwrap().into(),
+            ))
+         }
+         "coodi.setChatTitle" => {
+            let title = params
+               .get("title")
+               .and_then(|v| v.as_str())
+               .map(str::trim)
+               .filter(|title| !title.is_empty())
+               .ok_or_else(|| {
+                  acp::Error::new(-32602, "coodi.setChatTitle requires a title".to_string())
+               })?
+               .to_string();
+
+            self.emit_event(AcpEvent::UiAction {
+               session_id,
+               action: UiAction::SetChatTitle { title },
+            });
+
+            let response = serde_json::json!({ "success": true });
+            Ok(acp::ExtResponse::new(
+               serde_json::value::to_raw_value(&response).unwrap().into(),
+            ))
+         }
+         _ => Err(acp::Error::method_not_found()),
+      }
+   }
+
+   async fn ext_notification(&self, args: acp::ExtNotification) -> acp::Result<()> {
+      // Log extension notifications for debugging
+      log::debug!(
+         "ACP extension notification: method={}, params={}",
+         args.method,
+         args.params.get()
+      );
+      Ok(())
+   }
+}

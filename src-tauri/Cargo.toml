@@ -1,0 +1,141 @@
+[package]
+name = "coodi"
+version = "0.11.0"
+description = "Coodi code editor"
+authors = ["you"]
+edition = "2024"
+
+[features]
+default = ["tauri-wry"]
+tauri-wry = [
+  "coodi-ai/tauri-wry",
+  "coodi-debugger/tauri-wry",
+  "coodi-extensions/tauri-wry",
+  "coodi-lsp/tauri-wry",
+  "coodi-remote/tauri-wry",
+  "coodi-terminal/tauri-wry",
+  "coodi-tooling/tauri-wry",
+  "tauri/wry",
+  "tauri/x11",
+]
+linux = [
+  "coodi-ai/linux",
+  "coodi-debugger/linux",
+  "coodi-extensions/linux",
+  "coodi-lsp/linux",
+  "coodi-remote/linux",
+  "coodi-terminal/linux",
+  "coodi-tooling/linux",
+  "dep:tauri-runtime-cef",
+  "tauri/cef",
+]
+
+[lints]
+workspace = true
+
+[lib]
+name = "coodi_text_lib"
+crate-type = ["rlib"]
+
+[build-dependencies]
+tauri-build = { git = "https://github.com/tauri-apps/tauri", rev = "d3a685323977d5618cdc8fe1ad9b8f3c80c6c26c", features = [
+] }
+
+[dependencies]
+anyhow = "1.0"
+base64 = "0.21"
+chrono = { version = "0.4.41", features = ["serde"] }
+colored = "3.0.0"
+crossbeam-channel = "0.5"
+dirs = "5.0"
+ec4rs = "1.2"
+env_logger = "0.11.8"
+futures-util = "0.3"
+git2 = { version = "0.20", features = ["vendored-libgit2", "vendored-openssl"] }
+coodi-runtime = { path = "../crates/runtime" }
+coodi-tooling = { path = "../crates/tooling", default-features = false }
+coodi-lsp = { path = "../crates/lsp", default-features = false }
+coodi-remote = { path = "../crates/remote", default-features = false }
+coodi-wsl = { path = "../crates/wsl" }
+coodi-project = { path = "../crates/project" }
+coodi-version-control = { path = "../crates/version-control" }
+coodi-extensions = { path = "../crates/extensions", default-features = false }
+coodi-terminal = { path = "../crates/terminal", default-features = false }
+coodi-ai = { path = "../crates/ai", default-features = false }
+coodi-github = { path = "../crates/github" }
+coodi-fff-search = { path = "../crates/fff-search" }
+coodi-debugger = { path = "../crates/debugger", default-features = false }
+coodi-database = { path = "../crates/database", default-features = false, features = ["sqlite"] }
+mimalloc = { version = "0.1", default-features = false }
+log = "0.4.27"
+percent-encoding = "2"
+lsp-types = { version = "0.95", features = ["proposed"] }
+portable-pty = "0.9"
+regex = "1.10"
+reqwest = "0.12"
+rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
+roxmltree = "0.20"
+rusqlite = { version = "0.29.0", features = ["bundled"] }
+sha256 = "1.5"
+tar = "0.4"
+flate2 = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+sha2 = "0.10"
+serde_json = "1.0"
+keyring = { version = "3.6.3", features = [
+  "apple-native",
+  "crypto-rust",
+  "sync-secret-service",
+  "windows-native",
+] }
+tauri = { version = "2", default-features = false, features = [
+  "compression",
+  "common-controls-v6",
+  "dynamic-acl",
+  "macos-private-api",
+  "protocol-asset",
+  "test",
+  "unstable",
+] }
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
+tauri-plugin-http = "2"
+tauri-plugin-log = "2"
+tauri-plugin-opener = "2"
+tauri-plugin-os = "2"
+tauri-plugin-process = "2"
+tauri-plugin-shell = "2"
+tauri-plugin-single-instance = "2"
+tauri-plugin-store = "2"
+tauri-plugin-updater = "2"
+tokio = { version = "1.0", features = ["full"] }
+tokio-tungstenite = "0.24"
+unicode-width = "0.2.1"
+url = "2.5"
+uuid = { version = "1.0", features = ["v4", "serde"] }
+vt100 = "0.15"
+walkdir = "2.5.0"
+which = "7.0"
+zip = "2.2"
+window-vibrancy = "0.6.0"
+tempfile = "3.20.0"
+fontdb = "0.23.0"
+ttf-parser = "0.25.1"
+nucleo = "0.5.0"
+nucleo-matcher = "0.3.1"
+toml = "0.8"
+tauri-plugin-clipboard-manager = "2"
+tauri-plugin-deep-link = "2"
+agent-client-protocol = "0.14"
+async-trait = "0.1"
+tokio-util = { version = "0.7", features = ["compat"] }
+
+
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-window-state = "2"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+tauri-runtime-cef = { git = "https://github.com/tauri-apps/tauri", rev = "d3a685323977d5618cdc8fe1ad9b8f3c80c6c26c", optional = true }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc = "0.2"

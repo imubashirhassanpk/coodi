@@ -1,0 +1,17 @@
+{
+  "websiteBaseUrl": "https://www.mubashirhassan.com/coodi",
+  "apiBaseUrl": "https://www.mubashirhassan.com/coodi",
+  "docsUrl": "https://www.mubashirhassan.com/coodi/docs",
+  "telemetryDocsUrl": "https://www.mubashirhassan.com/coodi/docs/telemetry",
+  "pricingUrl": "https://www.mubashirhassan.com/coodi/pricing",
+  "dashboardUrl": "https://www.mubashirhassan.com/coodi/dashboard",
+  "dashboardBillingUrl": "https://www.mubashirhassan.com/coodi/dashboard/settings/billing",
+  "dashboardIntegrationsUrl": "https://www.mubashirhassan.com/coodi/dashboard/settings/integrations",
+  "dashboardCollaborationUrl": "https://www.mubashirhassan.com/coodi/dashboard/collaboration",
+  "extensionsCdnBaseUrl": "https://www.mubashirhassan.com/coodi/extensions",
+  "skillsRegistryUrl": "https://www.mubashirhassan.com/coodi/skills/index.json",
+  "stableUpdateUrl": "https://www.mubashirhassan.com/coodi/api/update/stable",
+  "previewUpdateUrl": "https://www.mubashirhassan.com/coodi/api/update/preview",
+  "githubReleasesBaseUrl": "https://www.mubashirhassan.com/coodi/releases",
+  "githubReleasesApiBaseUrl": "https://www.mubashirhassan.com/coodi/api/releases"
+}

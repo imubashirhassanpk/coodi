@@ -1,0 +1,35 @@
+{
+  "id": "coodi.sentry",
+  "name": "sentry",
+  "displayName": "Sentry",
+  "description": "Inspect unresolved Sentry issues for a project without leaving Coodi.",
+  "version": "1.0.0",
+  "publisher": "Coodi",
+  "categories": ["Integration"],
+  "integrations": [
+    {
+      "id": "sentry",
+      "name": "Sentry",
+      "description": "Sentry errors and issue activity",
+      "kind": "observability",
+      "icon": "sentry"
+    }
+  ],
+  "main": "main.js",
+  "permissions": {
+    "network": ["https://*", "http://localhost:*", "http://127.0.0.1:*"],
+    "secrets": true,
+    "openExternal": true
+  },
+  "icon": "icon.svg",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://www.mubashirhassan.com/coodi"
+  },
+  "installation": {
+    "downloadUrl": "https://www.mubashirhassan.com/coodi/extensions/packages/integration/sentry/coodi.sentry.tar.gz",
+    "size": 9751,
+    "checksum": "035ac1fb0ec787ceb4c6b036f8a38f31e3bbed6a2902b9ec3be54bb3f5228de0"
+  }
+}

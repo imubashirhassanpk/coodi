@@ -1,0 +1,18 @@
+{
+  "$schema": "https://www.mubashirhassan.com/coodi/schemas/extension.json",
+  "id": "coodi.r",
+  "name": "R",
+  "displayName": "R",
+  "version": "1.0.0",
+  "description": "R language support for statistical programming and reproducible analysis",
+  "publisher": "Coodi",
+  "categories": ["Language"],
+  "languages": [
+    {
+      "id": "r",
+      "extensions": [".R", ".r"],
+      "aliases": ["R", "Rscript"],
+      "filenames": [".Rprofile"]
+    }
+  ]
+}

@@ -1,0 +1,45 @@
+{
+  "$schema": "https://www.mubashirhassan.com/coodi/schemas/extension.json",
+  "id": "coodi.database.redis",
+  "name": "Redis",
+  "displayName": "Redis Provider",
+  "version": "1.0.0",
+  "description": "Redis connection, key scanning, and value editing provider.",
+  "publisher": "Coodi",
+  "categories": ["Database"],
+  "activationEvents": ["onDatabase:redis"],
+  "installation": {
+    "downloadUrl": "https://www.mubashirhassan.com/coodi/extensions/database/redis/darwin-arm64.tar.gz",
+    "size": 746802,
+    "checksum": "5e1e770dd25b49651453e4e022cab8e403849b9b68e793df3a7ddb66a98415f5",
+    "platformArch": {
+      "darwin-arm64": {
+        "downloadUrl": "https://www.mubashirhassan.com/coodi/extensions/database/redis/darwin-arm64.tar.gz",
+        "size": 746802,
+        "checksum": "5e1e770dd25b49651453e4e022cab8e403849b9b68e793df3a7ddb66a98415f5"
+      }
+    }
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://www.mubashirhassan.com/coodi"
+  },
+  "icon": "icon.svg",
+  "databases": [
+    {
+      "id": "redis",
+      "label": "Redis",
+      "isFileBased": false,
+      "protocolVersion": 1,
+      "defaultPort": 6379,
+      "sidecar": {
+        "darwin-arm64": "bin/coodi-db-redis",
+        "darwin-x64": "bin/coodi-db-redis",
+        "linux-arm64": "bin/coodi-db-redis",
+        "linux-x64": "bin/coodi-db-redis",
+        "win32-x64": "bin/coodi-db-redis.exe"
+      }
+    }
+  ]
+}
