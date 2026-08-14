@@ -122,7 +122,7 @@ function formatBody(githubNotes, tag, previousTag) {
   if (lines.length > 0) {
     lines.push("");
   }
-  lines.push(`**Full Changelog**: https://github.com/athasdev/athas/compare/${compareRange}`);
+  lines.push(`**Full Changelog**: https://github.com/mubashirhassanpk/coodi/compare/${compareRange}`);
 
   return lines.join("\n");
 }
@@ -165,7 +165,7 @@ if (!tag) {
 }
 
 const outputPath = getArg("--github-output");
-const repo = getArg("--repo") || process.env.GITHUB_REPOSITORY || "athasdev/athas";
+const repo = getArg("--repo") || process.env.GITHUB_REPOSITORY || "mubashirhassanpk/coodi";
 const previousTag = await getPreviousTag(tag);
 const githubNotes = await generateGithubNotes(tag, previousTag, repo);
 const releaseEntries = await formatReleaseEntries(tag, previousTag, repo, githubNotes);

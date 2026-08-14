@@ -262,7 +262,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "athas-database"
+name = "coodi-database"
 version = "0.1.0"
 dependencies = [
  "duckdb",

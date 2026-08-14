@@ -309,7 +309,7 @@ function validateChecksumFile(checksumText, expectedAssets) {
 function validateLocal() {
   const tag = requireArg("--tag");
   const dir = requireArg("--dir");
-  const repo = getArg("--repo", "athasdev/athas");
+  const repo = getArg("--repo", "mubashirhassanpk/coodi");
   const version = versionFromTag(tag);
   const channel = channelFromTag(tag);
   const { filesByName, assets } = collectRequiredAssets(dir, version, channel);

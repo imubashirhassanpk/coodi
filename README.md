@@ -7,7 +7,7 @@
 
 ## About Coodi
 
-**Coodi** is an independently branded fork of the upstream [Athas](https://github.com/athasdev/athas) project. This source refresh is based on upstream commit `d650f629ec702637faf48214f44b1cf6dfa5d103` and preserves the upstream **GNU Affero General Public License v3 or later** terms, copyright notices, and attribution requirements.
+**Coodi** is an independently maintained open-source desktop code builder. It is released under the **GNU Affero General Public License v3 or later**, with the applicable copyright notices and attribution requirements preserved.
 
 Coodi is deliberately **account-free, subscription-free, and BYOK-only**. It does not require registration, login, billing, a hosted account, or a Pro upgrade. Users connect providers with their own API keys, while local providers such as Ollama can run without a cloud key. Provider credentials are stored through the desktop secure-storage implementation using the OS keychain when available.
 

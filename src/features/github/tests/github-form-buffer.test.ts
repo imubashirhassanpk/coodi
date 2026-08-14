@@ -4,8 +4,8 @@ import { getRepositoryDisplayName } from "../utils/github-viewer-utils";
 
 describe("GitHub form buffers", () => {
   it("uses only the repository name in form chrome", () => {
-    expect(getRepositoryDisplayName("/Users/mehmetozgul/Documents/Git/athasdev/athas")).toBe(
-      "athas",
+    expect(getRepositoryDisplayName("/Users/mehmetozgul/Documents/Git/mubashirhassanpk/coodi")).toBe(
+      "coodi",
     );
   });
 

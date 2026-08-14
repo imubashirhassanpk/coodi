@@ -25,16 +25,16 @@ describe("buildWhatsNewMarkdown", () => {
     const markdown = buildWhatsNewMarkdown({
       version: "1.2.0",
       body: [
-        "* Improve updater layout by @coodidev in https://github.com/athasdev/athas/commit/abc123",
-        "**Full Changelog**: https://github.com/athasdev/athas/compare/v1.1.0...v1.2.0",
+        "* Improve updater layout by @coodidev in https://github.com/mubashirhassanpk/coodi/commit/abc123",
+        "**Full Changelog**: https://github.com/mubashirhassanpk/coodi/compare/v1.1.0...v1.2.0",
       ].join("\n"),
     });
 
     expect(markdown).toContain(
-      "- [Improve updater layout](https://github.com/athasdev/athas/commit/abc123) — @coodidev",
+      "- [Improve updater layout](https://github.com/mubashirhassanpk/coodi/commit/abc123) — @coodidev",
     );
     expect(markdown).toContain(
-      "**Full changelog:** [Compare changes](https://github.com/athasdev/athas/compare/v1.1.0...v1.2.0)",
+      "**Full changelog:** [Compare changes](https://github.com/mubashirhassanpk/coodi/compare/v1.1.0...v1.2.0)",
     );
     expect(markdown).not.toContain(" by @coodidev in https://");
   });

@@ -18,7 +18,7 @@ on:
 
 jobs:
   validate:
-    if: github.repository == 'athasdev/athas'
+    if: github.repository == 'mubashirhassanpk/coodi'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -44,7 +44,7 @@ jobs:
           )
 
   deploy:
-    if: github.repository == 'athasdev/athas' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    if: github.repository == 'mubashirhassanpk/coodi' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     needs: validate
     runs-on: ubuntu-latest
     steps:

@@ -12,7 +12,7 @@ describe("GitHub notification repository routing", () => {
         url:
           repoPath === "/workspace/www"
             ? "git@github.com:coodidev/www.git"
-            : "https://github.com/athasdev/athas.git",
+            : "https://github.com/mubashirhassanpk/coodi.git",
       },
     ]);
 
@@ -27,7 +27,7 @@ describe("GitHub notification repository routing", () => {
 
   it("uses an API-backed repository reference when the repo is not local", async () => {
     const loadRemotes = vi.fn(async () => [
-      { name: "origin", url: "https://github.com/athasdev/athas.git" },
+      { name: "origin", url: "https://github.com/mubashirhassanpk/coodi.git" },
     ]);
 
     await expect(
@@ -36,7 +36,7 @@ describe("GitHub notification repository routing", () => {
   });
 
   it("rejects malformed repository names", async () => {
-    expect(buildGitHubRepositoryRef("athasdev/athas/extra")).toBeNull();
+    expect(buildGitHubRepositoryRef("mubashirhassanpk/coodi/extra")).toBeNull();
     await expect(resolveGitHubNotificationRepoPath("../coodi", [], vi.fn())).resolves.toBeNull();
   });
 });

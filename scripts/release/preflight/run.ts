@@ -167,11 +167,11 @@ async function main() {
     return { passed: true };
   });
 
-  await runCheck("Origin remote targets athasdev/athas", async () => {
+  await runCheck("Origin remote targets mubashirhassanpk/coodi", async () => {
     const remoteUrl = (await $`git remote get-url origin`.text()).trim();
     const isExpectedRemote =
-      remoteUrl.includes("github.com/athasdev/athas") ||
-      remoteUrl.includes("github.com:athasdev/athas");
+      remoteUrl.includes("github.com/mubashirhassanpk/coodi") ||
+      remoteUrl.includes("github.com:mubashirhassanpk/coodi");
 
     if (!isExpectedRemote) {
       return {

@@ -304,7 +304,7 @@ async function release() {
 
     log("\n✨ Release process complete!\n", "green");
     log(`GitHub Actions will now build draft release v${newVersion}`, "cyan");
-    log("View the progress at: https://github.com/athasdev/athas/actions\n", "cyan");
+    log("View the progress at: https://github.com/mubashirhassanpk/coodi/actions\n", "cyan");
     log(
       `After the workflow finishes, verify it with: bun release:verify --tag v${newVersion}`,
       "cyan",

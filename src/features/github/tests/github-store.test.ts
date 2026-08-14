@@ -21,7 +21,7 @@ function pullRequest(number: number, title: string): PullRequest {
     updatedAt: "2026-08-04T00:00:00.000Z",
     isDraft: false,
     reviewDecision: null,
-    url: `https://github.com/athasdev/athas/pull/${number}`,
+    url: `https://github.com/mubashirhassanpk/coodi/pull/${number}`,
     headRef: `feature-${number}`,
     baseRef: "main",
     additions: 1,

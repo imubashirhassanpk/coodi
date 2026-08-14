@@ -70,7 +70,7 @@ export function createAuthStore(
 
       actions: {
         initialize: async () => {
-          // Remove a legacy Coodi/Athas token once, without contacting a server.
+          // Remove a legacy local token once, without contacting a server.
           try {
             await dependencies.removeAuthToken();
           } catch {

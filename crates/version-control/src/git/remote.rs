@@ -202,7 +202,7 @@ mod tests {
    #[test]
    fn clone_requires_an_absolute_destination() {
       let result = _git_clone(
-         "https://github.com/athasdev/athas.git".to_string(),
+         "https://github.com/mubashirhassanpk/coodi.git".to_string(),
          "coodi-clone-target".to_string(),
       );
       assert!(result.is_err());

@@ -9,7 +9,7 @@ vi.mock("dompurify", () => ({
 }));
 
 describe("normalizeGitHubMarkdown", () => {
-  const repositoryUrl = "https://github.com/athasdev/athas";
+  const repositoryUrl = "https://github.com/mubashirhassanpk/coodi";
 
   it("renders standalone GitHub attachments as inline video", () => {
     const attachmentUrl =
@@ -35,7 +35,7 @@ describe("normalizeGitHubMarkdown", () => {
   it("links issue references without rewriting code or existing links", () => {
     const content = [
       "Fixes #714 and keeps `#715` literal.",
-      "[Existing #716](https://github.com/athasdev/athas/issues/716)",
+      "[Existing #716](https://github.com/mubashirhassanpk/coodi/issues/716)",
       "```text",
       "#717",
       "```",
@@ -44,9 +44,9 @@ describe("normalizeGitHubMarkdown", () => {
     const normalized = normalizeGitHubMarkdown(content, repositoryUrl);
 
     expect(normalized).toContain(
-      "Fixes [#714](https://github.com/athasdev/athas/issues/714) and keeps `#715` literal.",
+      "Fixes [#714](https://github.com/mubashirhassanpk/coodi/issues/714) and keeps `#715` literal.",
     );
-    expect(normalized).toContain("[Existing #716](https://github.com/athasdev/athas/issues/716)");
+    expect(normalized).toContain("[Existing #716](https://github.com/mubashirhassanpk/coodi/issues/716)");
     expect(normalized).toContain("```text\n#717\n```");
   });
 

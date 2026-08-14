@@ -2015,7 +2015,7 @@ mod api_tests {
 
    #[test]
    fn parses_https_github_remote() {
-      let slug = parse_github_remote_url("https://github.com/athasdev/athas.git").unwrap();
+      let slug = parse_github_remote_url("https://github.com/mubashirhassanpk/coodi.git").unwrap();
 
       assert_eq!(slug.owner, "coodidev");
       assert_eq!(slug.name, "coodi");
@@ -2023,7 +2023,7 @@ mod api_tests {
 
    #[test]
    fn parses_ssh_github_remote() {
-      let slug = parse_github_remote_url("git@github.com:athasdev/athas.git").unwrap();
+      let slug = parse_github_remote_url("git@github.com:mubashirhassanpk/coodi.git").unwrap();
 
       assert_eq!(slug.owner, "coodidev");
       assert_eq!(slug.name, "coodi");
@@ -2031,33 +2031,35 @@ mod api_tests {
 
    #[test]
    fn rejects_non_github_remote() {
-      assert!(parse_github_remote_url("https://example.com/athasdev/athas.git").is_none());
+      assert!(parse_github_remote_url("https://example.com/mubashirhassanpk/coodi.git").is_none());
    }
 
    #[test]
    fn rejects_nested_or_invalid_remote_paths() {
-      assert!(parse_github_remote_url("https://github.com/athasdev/athas/extra.git").is_none());
+      assert!(
+         parse_github_remote_url("https://github.com/mubashirhassanpk/coodi/extra.git").is_none()
+      );
       assert!(parse_github_remote_url("https://github.com/coodidev/../coodi.git").is_none());
    }
 
    #[test]
    fn converts_notification_subject_api_urls_to_github_urls() {
       assert_eq!(
-         github_api_url_to_web_url("https://api.github.com/repos/athasdev/athas/pulls/42")
+         github_api_url_to_web_url("https://api.github.com/repos/mubashirhassanpk/coodi/pulls/42")
             .as_deref(),
-         Some("https://github.com/athasdev/athas/pull/42")
+         Some("https://github.com/mubashirhassanpk/coodi/pull/42")
       );
       assert_eq!(
-         github_api_url_to_web_url("https://api.github.com/repos/athasdev/athas/issues/17")
+         github_api_url_to_web_url("https://api.github.com/repos/mubashirhassanpk/coodi/issues/17")
             .as_deref(),
-         Some("https://github.com/athasdev/athas/issues/17")
+         Some("https://github.com/mubashirhassanpk/coodi/issues/17")
       );
       assert_eq!(
          github_api_url_to_web_url(
-            "https://api.github.com/repos/athasdev/athas/actions/runs/30955072179"
+            "https://api.github.com/repos/mubashirhassanpk/coodi/actions/runs/30955072179"
          )
          .as_deref(),
-         Some("https://github.com/athasdev/athas/actions/runs/30955072179")
+         Some("https://github.com/mubashirhassanpk/coodi/actions/runs/30955072179")
       );
    }
 

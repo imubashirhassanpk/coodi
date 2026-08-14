@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   build:
-    if: github.repository == 'athasdev/athas'
+    if: github.repository == 'mubashirhassanpk/coodi'
     name: Build Linux tarball
     runs-on: ${{ inputs.runner || 'ubuntu-22.04' }}
     timeout-minutes: 120

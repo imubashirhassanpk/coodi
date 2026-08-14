@@ -23,7 +23,7 @@ The default package wraps the latest stable, prebuilt Coodi Linux release for
 `x86_64-linux` and `aarch64-linux`:
 
 ```sh
-nix run github:athasdev/athas
+nix run github:mubashirhassanpk/coodi
 ```
 
 This package does not build Coodi from source. It downloads the release archive,

@@ -19,10 +19,10 @@ describe("new project model", () => {
   });
 
   it("infers project names from common repository URLs", () => {
-    expect(inferProjectNameFromRepositoryUrl("https://github.com/athasdev/athas.git")).toBe(
-      "athas",
+    expect(inferProjectNameFromRepositoryUrl("https://github.com/mubashirhassanpk/coodi.git")).toBe(
+      "coodi",
     );
-    expect(inferProjectNameFromRepositoryUrl("git@github.com:athasdev/athas.git")).toBe("athas");
+    expect(inferProjectNameFromRepositoryUrl("git@github.com:mubashirhassanpk/coodi.git")).toBe("coodi");
     expect(inferProjectNameFromRepositoryUrl("https://example.com/my%20project/")).toBe(
       "my project",
     );
