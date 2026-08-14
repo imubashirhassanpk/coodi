@@ -16,4 +16,8 @@
 - [x] Inspect and repair the Windows application, executable, and shortcut icon configuration.
 - [x] Run focused tests and Windows packaging validation for the desktop fixes.
 - [ ] Commit and push the verified desktop fixes to the Coodi GitHub repository.
-- [ ] Build, inspect, and publish a Windows-only patch installer containing the verified settings and icon fixes.
+- [ ] Build, inspect, and publish a Windows-only patch installer containing the verified settings and icon fixes. Deferred for this task at the user's request.
+- [x] Document the localhost Windows NSIS `.exe` installer build and prompt-based verification workflow in the README.
+- [ ] Validate and push the README documentation update to both Coodi repositories.
+- [x] Document the local macOS DMG build commands, architecture options, signing caveats, and output paths in the README.
+- [x] Add copy-paste Windows and macOS build prompts for Cursor, Claude, Grok, and similar coding assistants.
