@@ -1,0 +1,211 @@
+name: Build Coodi Installers
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: coodi-installers-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "22"
+  PNPM_VERSION: "11.21.0"
+
+jobs:
+  build:
+    name: Build ${{ matrix.name }}
+    if: github.repository == 'mubashirhassanpk/coodi'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows x64 NSIS
+            artifact: windows-x64
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+            bundles: nsis
+            shell: pwsh
+          - name: macOS Apple Silicon DMG
+            artifact: macos-aarch64
+            os: macos-14
+            target: aarch64-apple-darwin
+            bundles: app,dmg
+            shell: bash
+          - name: macOS Intel DMG
+            artifact: macos-x86_64
+            os: macos-13
+            target: x86_64-apple-darwin
+            bundles: app,dmg
+            shell: bash
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+
+    steps:
+      - name: Check out Coodi
+        uses: actions/checkout@v6
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install Rust nightly and target
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          targets: ${{ matrix.target }}
+          components: rustfmt
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: . -> target
+          cache-on-failure: true
+
+      - name: Install dependencies
+        shell: bash
+        run: pnpm install --ignore-scripts --config.block-exotic-subdeps=false
+
+      - name: Import Apple signing certificate
+        if: runner.os == 'macOS'
+        shell: bash
+        env:
+          APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$APPLE_CERTIFICATE_BASE64" || -z "$APPLE_CERTIFICATE_PASSWORD" || -z "$APPLE_SIGNING_IDENTITY" ]]; then
+            echo "APPLE_CODE_SIGNING=false" >> "$GITHUB_ENV"
+            echo "Apple signing secrets are incomplete; building an unsigned macOS bundle."
+            exit 0
+          fi
+
+          certificate_path="$RUNNER_TEMP/coodi-signing.p12"
+          keychain_path="$RUNNER_TEMP/coodi-signing.keychain-db"
+          keychain_password="$(openssl rand -hex 24)"
+
+          printf '%s' "$APPLE_CERTIFICATE_BASE64" | base64 --decode > "$certificate_path"
+          security create-keychain -p "$keychain_password" "$keychain_path"
+          security set-keychain-settings -lut 21600 "$keychain_path"
+          security unlock-keychain -p "$keychain_password" "$keychain_path"
+          security import "$certificate_path" \
+            -P "$APPLE_CERTIFICATE_PASSWORD" \
+            -A -t cert -f pkcs12 -k "$keychain_path"
+          security set-key-partition-list \
+            -S apple-tool:,apple: \
+            -k "$keychain_password" \
+            "$keychain_path"
+          security list-keychain -d user -s "$keychain_path"
+          echo "APPLE_CODE_SIGNING=true" >> "$GITHUB_ENV"
+
+      - name: Prepare Apple signing configuration
+        if: runner.os == 'macOS'
+        shell: bash
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        run: node scripts/release/packaging/macos/prepare-signing.mjs
+
+      - name: Import Windows Authenticode certificate
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          WINDOWS_CERTIFICATE_BASE64: ${{ secrets.WINDOWS_CERTIFICATE_BASE64 }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+          WINDOWS_TIMESTAMP_URL: ${{ secrets.WINDOWS_TIMESTAMP_URL }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          New-Item -ItemType Directory -Force -Path "$env:RUNNER_TEMP\coodi-signing" | Out-Null
+          $certificateText = "$env:RUNNER_TEMP\coodi-signing\certificate.txt"
+          $certificatePath = "$env:RUNNER_TEMP\coodi-signing\certificate.pfx"
+          Set-Content -NoNewline -Path $certificateText -Value $env:WINDOWS_CERTIFICATE_BASE64
+          certutil -decode $certificateText $certificatePath | Out-Host
+          if ($LASTEXITCODE -ne 0) { throw "Unable to decode the Windows certificate." }
+
+          $password = ConvertTo-SecureString `
+            -String $env:WINDOWS_CERTIFICATE_PASSWORD `
+            -AsPlainText -Force
+          $cert = Import-PfxCertificate `
+            -FilePath $certificatePath `
+            -CertStoreLocation Cert:\CurrentUser\My `
+            -Password $password |
+            Select-Object -First 1
+          if (-not $cert) { throw "Unable to import the Windows certificate." }
+
+          "WINDOWS_CERTIFICATE_THUMBPRINT=$($cert.Thumbprint)" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+          "WINDOWS_DIGEST_ALGORITHM=sha256" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+          if ($env:WINDOWS_TIMESTAMP_URL) {
+            "WINDOWS_TIMESTAMP_URL=$env:WINDOWS_TIMESTAMP_URL" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+          } else {
+            "WINDOWS_TIMESTAMP_URL=http://time.certum.pl/" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+          }
+
+      - name: Prepare Windows signing configuration
+        if: runner.os == 'Windows'
+        shell: bash
+        run: node scripts/release/packaging/windows/prepare-signing.mjs
+
+      - name: Build installer bundles
+        shell: bash
+        env:
+          APPLE_ID: ${{ runner.os == 'macOS' && secrets.APPLE_ID || '' }}
+          APPLE_PASSWORD: ${{ runner.os == 'macOS' && secrets.APPLE_PASSWORD || '' }}
+          APPLE_TEAM_ID: ${{ runner.os == 'macOS' && secrets.APPLE_TEAM_ID || '' }}
+        run: |
+          set -euo pipefail
+          ./node_modules/.bin/tauri build \
+            --target "${{ matrix.target }}" \
+            --bundles "${{ matrix.bundles }}"
+
+      - name: Upload installer artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: coodi-${{ matrix.artifact }}
+          path: src-tauri/target/${{ matrix.target }}/release/bundle
+          if-no-files-found: error
+          retention-days: 30
+
+  publish-release:
+    name: Publish GitHub Release assets
+    if: startsWith(github.ref, 'refs/tags/v') && github.repository == 'mubashirhassanpk/coodi'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download installer artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: coodi-*
+          path: release-assets
+          merge-multiple: true
+
+      - name: Collect distributable installer files
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release-publish
+          find release-assets -type f \( -name '*.exe' -o -name '*.dmg' -o -name '*.msi' \) -print -exec cp {} release-publish/ \;
+          test -n "$(find release-publish -type f -print -quit)"
+          find release-publish -type f -maxdepth 1 -print
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-publish/*
+          generate_release_notes: true
+          fail_on_unmatched_files: true

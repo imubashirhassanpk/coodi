@@ -58,7 +58,7 @@ pnpm run build:mac:apple-silicon  # aarch64-apple-darwin
 pnpm run build:mac:intel          # x86_64-apple-darwin
 ```
 
-These commands produce `.app` and `.dmg` bundles under `src-tauri/target/<target>/release/bundle/`. Local builds are unsigned unless Apple signing environment variables are configured. See [docs/INSTALL_MACOS.md](docs/INSTALL_MACOS.md) for prerequisites, signing, and installation details.
+These commands produce `.app` and `.dmg` bundles under `src-tauri/target/<target>/release/bundle/`. Local builds are unsigned unless Apple signing environment variables are configured. See [docs/INSTALL_MACOS.md](docs/INSTALL_MACOS.md) for prerequisites, signing, and installation details. Automated Windows and macOS builds are documented in [docs/CI_INSTALLERS.md](docs/CI_INSTALLERS.md).
 
 ## Project website and attribution
 
