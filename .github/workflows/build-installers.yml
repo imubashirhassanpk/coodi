@@ -22,7 +22,7 @@ env:
 jobs:
   build:
     name: Build ${{ matrix.name }}
-    if: github.repository == 'mubashirhassanpk/coodi'
+    if: github.repository == 'mubashirhassanpk/coodi' || github.repository == 'imubashirhassanpk/coodi'
     strategy:
       fail-fast: false
       matrix:
@@ -148,7 +148,7 @@ jobs:
 
   publish-release:
     name: Publish Windows GitHub Release asset
-    if: startsWith(github.ref, 'refs/tags/v') && github.repository == 'mubashirhassanpk/coodi'
+    if: startsWith(github.ref, 'refs/tags/v') && (github.repository == 'mubashirhassanpk/coodi' || github.repository == 'imubashirhassanpk/coodi')
     needs: build
     runs-on: ubuntu-latest
     permissions:
