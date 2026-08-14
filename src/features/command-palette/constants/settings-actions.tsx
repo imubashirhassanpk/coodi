@@ -75,6 +75,7 @@ const settingsTabLabels: Record<SettingsTab, string> = {
   advanced: "Advanced",
   terminal: "Terminal",
   "file-explorer": "Files",
+  about: "About Coodi",
 };
 
 const settingsTabCommands = (Object.entries(settingsTabLabels) as Array<[SettingsTab, string]>)

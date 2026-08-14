@@ -3,6 +3,7 @@ import {
   GearIcon as Gear,
   GearSixIcon as GearSix,
   GitBranchIcon as GitBranch,
+  InfoIcon as Info,
   KeyboardIcon as Keyboard,
   PaintBrushIcon as PaintBrush,
   SparkleIcon as Sparkle,
@@ -78,6 +79,11 @@ export const SETTINGS_TAB_ITEMS: SettingsTabItem[] = [
     label: "Advanced",
     icon: Gear,
   },
+  {
+    id: "about",
+    label: "About Coodi",
+    icon: Info,
+  },
 ];
 
 export const SettingsVerticalTabs = ({
@@ -138,7 +144,6 @@ export const SettingsVerticalTabs = ({
           </TabsList>
         </ScrollArea>
       </Tabs>
-
     </div>
   );
 };

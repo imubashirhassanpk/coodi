@@ -142,9 +142,7 @@ const AIChatInputBar = memo(function AIChatInputBar({
         void updateSetting("aiModelId", aiCustomModelId || aiAutocompleteCustomModelId);
         return;
       }
-      if (provider && provider.models.length > 0) {
-        void updateSetting("aiModelId", provider.models[0].id);
-      }
+      void updateSetting("aiModelId", provider?.models[0]?.id || "");
     },
     [aiAutocompleteCustomModelId, aiCustomModelId, updateSetting],
   );

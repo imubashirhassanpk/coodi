@@ -16,6 +16,7 @@ export const SETTINGS_SEARCH_TAB_LABELS: Record<SettingsTab, string> = {
   collaboration: "Collaboration",
   enterprise: "Enterprise",
   advanced: "Advanced",
+  about: "About Coodi",
 };
 
 export function getSettingSearchTargetKey(value: string) {

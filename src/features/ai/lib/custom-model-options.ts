@@ -1,4 +1,5 @@
 import type { ProviderModel } from "@/features/ai/services/providers/ai-provider-interface";
+import { getModelById } from "@/features/ai/types/providers.types";
 
 interface CustomModelOptionInput {
   providerId: string;
@@ -13,10 +14,11 @@ export function getCustomModelOptions({
   customModelId,
   autocompleteCustomModelId,
 }: CustomModelOptionInput): ProviderModel[] {
-  if (providerId !== "custom") return [];
-
   const seen = new Set<string>();
-  const modelIds = [modelId, customModelId, autocompleteCustomModelId]
+  const modelIds = [
+    modelId && !getModelById(providerId, modelId) ? modelId : undefined,
+    ...(providerId === "custom" ? [customModelId, autocompleteCustomModelId] : []),
+  ]
     .map((candidate) => candidate?.trim() || "")
     .filter((candidate) => {
       if (!candidate || seen.has(candidate)) return false;

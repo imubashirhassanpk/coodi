@@ -34,7 +34,8 @@ export type SettingsSection =
   | "enterprise"
   | "advanced"
   | "terminal"
-  | "file-explorer";
+  | "file-explorer"
+  | "about";
 
 export interface Settings {
   // General

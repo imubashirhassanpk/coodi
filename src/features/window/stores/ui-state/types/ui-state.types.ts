@@ -11,7 +11,8 @@ export type SettingsTab =
   | "enterprise"
   | "advanced"
   | "terminal"
-  | "file-explorer";
+  | "file-explorer"
+  | "about";
 
 export type BottomPaneTab = "terminal" | "debugger" | "diagnostics" | "references" | "buffers";
 

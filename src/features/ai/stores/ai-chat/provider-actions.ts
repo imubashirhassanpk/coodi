@@ -3,7 +3,6 @@ import {
   getProviderApiToken,
   removeProviderApiToken,
   storeProviderApiToken,
-  validateProviderApiKey,
 } from "@/features/ai/services/ai-token-service";
 import { getAvailableProviders, getProviderById } from "@/features/ai/types/providers.types";
 import { useSettingsStore } from "@/features/settings/stores/settings.store";
@@ -101,11 +100,10 @@ export function createProviderActions(set: SetAIChatStore, get: GetAIChatStore):
     checkAllProviderApiKeys: refreshProviderAccess,
     saveApiKey: async (providerId, apiKey) => {
       try {
-        if (!(await validateProviderApiKey(providerId, apiKey))) {
-          return false;
-        }
+        const token = apiKey.trim();
+        if (!token) return false;
 
-        await storeProviderApiToken(providerId, apiKey);
+        await storeProviderApiToken(providerId, token);
         await refreshProviderAccess();
         return true;
       } catch (error) {

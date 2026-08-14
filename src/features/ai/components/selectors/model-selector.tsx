@@ -54,9 +54,9 @@ export function ModelSelector({
       searchable
       searchableTrigger={isComposer ? "input" : "menu"}
       openDirection={isComposer ? "up" : "down"}
-      allowCustomValue={isCustomProvider}
-      customValueLabel={(customValue) => `Use ${customValue}`}
-      emptyLabel={isCustomProvider ? "Type a model name and press Enter" : "No models found"}
+      allowCustomValue
+      customValueLabel={(customValue) => `Use model ID: ${customValue}`}
+      emptyLabel="Type a model ID and press Enter"
       hideChevron={isComposer}
       size="xs"
       variant={isComposer ? "ghost" : "default"}

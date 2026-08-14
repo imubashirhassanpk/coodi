@@ -25,6 +25,7 @@ import { GitSettings } from "./tabs/git-settings";
 import { KeyboardSettings } from "./tabs/keyboard-settings";
 import { FileTreeSettings } from "./tabs/file-tree-settings";
 import { TerminalSettings } from "./tabs/terminal-settings";
+import { AboutSettings } from "./tabs/about-settings";
 
 interface SettingsDialogProps {
   isOpen: boolean;
@@ -74,12 +75,7 @@ const SettingsDialog = ({ isOpen, onClose }: SettingsDialogProps) => {
       setActiveTab(nextTab);
       void updateSetting("lastSettingsTab", nextTab);
     }
-  }, [
-    settingsInitialTab,
-    lastSettingsTab,
-    isOpen,
-    updateSetting,
-  ]);
+  }, [settingsInitialTab, lastSettingsTab, isOpen, updateSetting]);
 
   const handleTabChange = (tab: SettingsTab) => {
     const nextTab = resolveVisibleTab(tab);
@@ -173,6 +169,7 @@ const SettingsDialog = ({ isOpen, onClose }: SettingsDialogProps) => {
   useEffect(() => {
     if (!isOpen || !contentRef.current) return;
     contentRef.current.scrollLeft = 0;
+    contentRef.current.scrollTop = 0;
   }, [activeTab, isOpen]);
 
   const renderTabContent = () => {
@@ -195,6 +192,8 @@ const SettingsDialog = ({ isOpen, onClose }: SettingsDialogProps) => {
         return <TerminalSettings />;
       case "file-explorer":
         return <FileTreeSettings />;
+      case "about":
+        return <AboutSettings />;
       default:
         return <GeneralSettings />;
     }
@@ -257,15 +256,15 @@ const SettingsDialog = ({ isOpen, onClose }: SettingsDialogProps) => {
         }
         classNames={{
           modal:
-            "h-[74vh] max-h-205 w-[90vw] max-w-280 min-w-0 border-0 bg-surface max-[720px]:h-[86vh] max-[720px]:w-[calc(100vw-32px)] [&>div:first-child]:border-b-0",
+            "h-[calc(100dvh-48px)] max-h-230 w-[90vw] max-w-280 min-w-0 border-0 bg-surface max-[720px]:h-[calc(100dvh-32px)] max-[720px]:w-[calc(100vw-32px)] [&>div:first-child]:border-b-0",
           header:
             "bg-surface max-[720px]:grid max-[720px]:grid-cols-[minmax(0,1fr)_auto] max-[720px]:gap-2",
           title: "max-[720px]:min-w-0",
           headerActions: "max-[720px]:min-w-0",
-          content: "flex h-full p-0",
+          content: "flex h-full min-h-0 p-0",
         }}
       >
-        <div className="flex size-full min-w-0 overflow-hidden">
+        <div className="flex size-full min-h-0 min-w-0 overflow-hidden">
           <div className="h-full w-52 shrink-0 max-[720px]:hidden">
             <SettingsVerticalTabs
               activeTab={activeTab}
@@ -277,11 +276,11 @@ const SettingsDialog = ({ isOpen, onClose }: SettingsDialogProps) => {
           <Card
             variant="elevated"
             size="flush"
-            className="@container/settings mt-0 mr-2 mb-2 ml-0 min-w-0 flex-1 bg-background max-[720px]:ml-2"
+            className="@container/settings mt-0 mr-2 mb-2 ml-0 flex min-h-0 min-w-0 flex-1 flex-col bg-background max-[720px]:ml-2"
           >
             <ScrollArea
               orientation="vertical"
-              className="min-w-0 flex-1"
+              className="min-h-0 min-w-0 flex-1"
               contentClassName="w-full max-w-full overflow-x-hidden p-3 max-[720px]:p-2"
               viewportProps={{
                 ref: contentRef,

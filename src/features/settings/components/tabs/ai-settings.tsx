@@ -302,9 +302,7 @@ export const AISettings = () => {
       updateSetting("aiModelId", settings.aiCustomModelId || settings.aiAutocompleteCustomModelId);
       return;
     }
-    if (provider && provider.models.length > 0) {
-      updateSetting("aiModelId", provider.models[0].id);
-    }
+    updateSetting("aiModelId", provider?.models[0]?.id || "");
   };
 
   const loadAutocompleteModels = async () => {
@@ -499,7 +497,10 @@ export const AISettings = () => {
           )}
         </SettingRow>
 
-        <SettingRow label="API Keys" description="Manage provider API keys separately">
+        <SettingRow
+          label="API Keys"
+          description="Store provider keys securely. Coodi verifies them when it connects."
+        >
           <Button
             type="button"
             variant="default"

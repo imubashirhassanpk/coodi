@@ -214,14 +214,10 @@ function CoodiAgentPreferences({
               );
             })}
           </DropdownMenuRadioGroup>
-          {providerId === "custom" ? (
-            <>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => useUIState.getState().openSettingsDialog("ai")}>
-                Configure custom model…
-              </DropdownMenuItem>
-            </>
-          ) : null}
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={() => useUIState.getState().openSettingsDialog("ai")}>
+            Use another model ID…
+          </DropdownMenuItem>
         </DropdownMenuSubContent>
       </DropdownMenuSub>
 

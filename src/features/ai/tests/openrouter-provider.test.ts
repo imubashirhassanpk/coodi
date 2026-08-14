@@ -34,4 +34,21 @@ describe("OpenRouterProvider", () => {
       "X-Title": "Coodi",
     });
   });
+
+  it("keeps a manually selected OpenRouter model available", async () => {
+    const { getCustomModelOptions } = await import("@/features/ai/lib/custom-model-options");
+
+    expect(
+      getCustomModelOptions({
+        providerId: "openrouter",
+        modelId: "openai/gpt-5.4-mini",
+      }),
+    ).toEqual([
+      {
+        id: "openai/gpt-5.4-mini",
+        name: "openai/gpt-5.4-mini",
+        maxTokens: 4096,
+      },
+    ]);
+  });
 });

@@ -11,17 +11,6 @@ interface OpenRouterModel {
   name?: string;
   top_provider?: { max_completion_tokens?: number };
   context_length?: number;
-  pricing?: { prompt?: string; completion?: string };
-}
-
-function isFreeModel(model: OpenRouterModel): boolean {
-  const id = model.id?.trim() ?? "";
-  if (!id) return false;
-  if (id === "openrouter/free" || id.endsWith(":free")) return true;
-
-  const prompt = Number(model.pricing?.prompt ?? Number.NaN);
-  const completion = Number(model.pricing?.completion ?? Number.NaN);
-  return Number.isFinite(prompt) && Number.isFinite(completion) && prompt === 0 && completion === 0;
 }
 
 export class OpenRouterProvider extends AIProvider {
@@ -36,7 +25,7 @@ export class OpenRouterProvider extends AIProvider {
 
       const data = (await response.json()) as { data?: OpenRouterModel[] };
       return (data.data ?? [])
-        .filter(isFreeModel)
+        .filter((model) => Boolean(model.id?.trim()))
         .map((model) => ({
           id: model.id!.trim(),
           name: model.name?.trim() || model.id!.trim(),
@@ -66,9 +55,7 @@ export class OpenRouterProvider extends AIProvider {
       max_completion_tokens: request.maxTokens,
       temperature: request.temperature,
       stream: true,
-      ...(request.responseFormat
-        ? { response_format: { type: request.responseFormat } }
-        : {}),
+      ...(request.responseFormat ? { response_format: { type: request.responseFormat } } : {}),
     };
   }
 

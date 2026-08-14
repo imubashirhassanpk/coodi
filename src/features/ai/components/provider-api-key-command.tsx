@@ -91,7 +91,7 @@ function ProviderApiKeyCommandContent({
   const [apiKey, setApiKey] = useState(() =>
     initialSelectedProviderId && hasProviderApiKey(initialSelectedProviderId) ? MASKED_API_KEY : "",
   );
-  const [isValidating, setIsValidating] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [status, setStatus] = useState<"idle" | "valid" | "invalid">("idle");
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -132,23 +132,23 @@ function ProviderApiKeyCommandContent({
       return;
     }
 
-    setIsValidating(true);
+    setIsSaving(true);
     setStatus("idle");
     setErrorMessage("");
     try {
       const isValid = await saveApiKey(selectedProviderId, apiKey);
       if (!isValid) {
         setStatus("invalid");
-        setErrorMessage("Invalid API key.");
+        setErrorMessage("Could not save this API key.");
         return;
       }
       setStatus("valid");
       setApiKey(MASKED_API_KEY);
     } catch {
       setStatus("invalid");
-      setErrorMessage("Failed to validate API key.");
+      setErrorMessage("Failed to save API key.");
     } finally {
-      setIsValidating(false);
+      setIsSaving(false);
     }
   };
 
@@ -253,14 +253,14 @@ function ProviderApiKeyCommandContent({
                   }
                 }}
                 placeholder={placeholder}
-                disabled={isValidating}
+                disabled={isSaving}
                 autoComplete="off"
               />
 
               {status === "valid" && (
                 <div className="flex items-center gap-1.5 text-success ui-text-base">
                   <CheckCircle />
-                  API key saved.
+                  API key saved securely. Coodi will verify it when it connects.
                 </div>
               )}
               {status === "invalid" && errorMessage && (
@@ -299,10 +299,10 @@ function ProviderApiKeyCommandContent({
                     type="button"
                     variant="accent"
                     onClick={() => void handleSave()}
-                    disabled={!apiKey.trim() || isValidating || apiKey.startsWith("•")}
-                    className={cn(isValidating && "opacity-70")}
+                    disabled={!apiKey.trim() || isSaving || apiKey.startsWith("•")}
+                    className={cn(isSaving && "opacity-70")}
                   >
-                    <span>{isValidating ? "Validating" : "Save key"}</span>
+                    <span>{isSaving ? "Saving" : "Save key"}</span>
                   </Button>
                 </div>
               </div>
