@@ -92,7 +92,7 @@ jobs:
           if (-not (Test-Path $cpan)) { throw "Strawberry Perl cpan.bat was not found" }
           & $cpan -T -i Locale::Maketext::Simple Params::Check
           if ($LASTEXITCODE -ne 0) { throw "Failed to install OpenSSL Perl modules" }
-          perl.exe -MLocale::Maketext::Simple -MParams::Check -e "Write-Output 'Strawberry Perl OpenSSL prerequisites OK'"
+          perl.exe -MLocale::Maketext::Simple -MParams::Check -e 'print "Strawberry Perl OpenSSL prerequisites OK\\n"'
 
       - name: Run settings and AI contract tests
         shell: bash
