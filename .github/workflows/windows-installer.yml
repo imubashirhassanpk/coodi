@@ -1,0 +1,105 @@
+name: Windows Installer
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+  pull_request:
+    paths:
+      - ".github/workflows/windows-installer.yml"
+      - "src/**"
+      - "src-tauri/**"
+      - "scripts/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "rust-toolchain.toml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: windows-installer-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-windows-installer:
+    name: Build Windows NSIS installer
+    runs-on: windows-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.21.0
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
+      - name: Set up Rust nightly
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            src-tauri/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Install JavaScript dependencies
+        shell: bash
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Run project post-install setup
+        shell: bash
+        run: bun scripts/postinstall.ts
+
+      - name: Run settings and AI contract tests
+        shell: bash
+        run: pnpm exec vp test run src/features/settings/tests/settings-ui-contract.test.ts src/features/ai/tests/openai-provider-models.test.ts
+
+      - name: Typecheck frontend
+        shell: bash
+        run: pnpm exec tsc --noEmit --pretty false
+
+      - name: Build Windows NSIS installer
+        shell: bash
+        env:
+          CARGO_BUILD_JOBS: 2
+        run: pnpm exec tauri build --target x86_64-pc-windows-msvc --bundles nsis
+
+      - name: Upload NSIS installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coodi-windows-installer-${{ github.ref_name }}
+          if-no-files-found: error
+          path: src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*
+          retention-days: 30
+
+      - name: Publish tagged GitHub release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*
+          generate_release_notes: true
