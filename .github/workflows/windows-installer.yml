@@ -68,7 +68,7 @@ jobs:
 
       - name: Install JavaScript dependencies
         shell: bash
-        run: pnpm install --no-frozen-lockfile --ignore-scripts
+        run: pnpm install --no-frozen-lockfile --ignore-scripts --config.block-exotic-subdeps=false
 
       - name: Run project post-install setup
         shell: bash
