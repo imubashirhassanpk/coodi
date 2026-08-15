@@ -88,7 +88,9 @@ jobs:
         shell: pwsh
         run: |
           $env:Path = "C:\\Strawberry\\perl\\site\\bin;C:\\Strawberry\\perl\\bin;C:\\Strawberry\\c\\bin;$env:Path"
-          cpanm.exe --notest Locale::Maketext::Simple Params::Check
+          $cpan = "C:\\Strawberry\\perl\\bin\\cpan.bat"
+          if (-not (Test-Path $cpan)) { throw "Strawberry Perl cpan.bat was not found" }
+          & $cpan -T -i Locale::Maketext::Simple Params::Check
           if ($LASTEXITCODE -ne 0) { throw "Failed to install OpenSSL Perl modules" }
           perl.exe -MLocale::Maketext::Simple -MParams::Check -e "Write-Output 'Strawberry Perl OpenSSL prerequisites OK'"
 
