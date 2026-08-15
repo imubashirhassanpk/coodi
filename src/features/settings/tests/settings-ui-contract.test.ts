@@ -8,7 +8,6 @@ const tabsDirectory = fileURLToPath(new URL("../components/tabs", import.meta.ur
 const aiSelectorsDirectory = fileURLToPath(
   new URL("../../ai/components/selectors", import.meta.url),
 );
-const appDialogFile = fileURLToPath(new URL("../../../ui/dialog.tsx", import.meta.url));
 
 const settingsComponentFiles = [
   ...readdirSync(componentsDirectory)
@@ -89,14 +88,15 @@ describe("settings UI contract", () => {
     expect(sectionSource).toContain("@max-[640px]/settings:[&>div]:flex-wrap");
   });
 
-  it("gives long settings tabs a single bounded vertical scroll owner", () => {
+  it("renders Settings as a full-height tab with one bounded vertical scroll owner", () => {
     const settingsDialogSource = readFileSync(`${componentsDirectory}/settings-dialog.tsx`, "utf8");
-    const appDialogSource = readFileSync(appDialogFile, "utf8");
 
-    expect(settingsDialogSource).toContain("scrollContent={false}");
+    expect(settingsDialogSource).toContain('data-settings-page="true"');
+    expect(settingsDialogSource).toContain('className="flex size-full min-h-0 min-w-0 flex-col overflow-hidden bg-surface"');
     expect(settingsDialogSource).toContain('className="min-h-0 min-w-0 flex-1"');
-    expect(appDialogSource).toContain("scrollContent = true");
-    expect(appDialogSource).toContain('"flex min-h-0 flex-1 overflow-hidden"');
+    expect(settingsDialogSource).toContain('orientation="vertical"');
+    expect(settingsDialogSource).toContain("overflow-x-hidden");
+    expect(settingsDialogSource).not.toContain("scrollContent={false}");
   });
 
   it("content-sizes AI selector triggers and menus in settings", () => {

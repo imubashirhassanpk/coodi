@@ -9,7 +9,7 @@ import { providerFetch } from "./provider-fetch";
 const NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1";
 
 const NON_CHAT_MODEL_PATTERN =
-  /(embed|rerank|moderation|safety|guard|tts|text-to-speech|speech|audio|parakeet|ocr|image-generation|clip)/i;
+  /(embed|rerank|moderation|safety|guard|tts|text-to-speech|speech|audio|parakeet|ocr|image-generation|clip|video|detector|parse|retriever|calibration|translate|translation|diffusion|deplot)/i;
 
 function formatModelName(id: string, name?: string): string {
   if (name?.trim()) return name.trim();

@@ -58,8 +58,8 @@ import {
   removeProviderApiToken,
   storeProviderApiToken,
 } from "@/features/ai/services/ai-token-service";
-import { CodexSettings } from "@/features/ai/integrations/codex/codex-settings";
 const DEFAULT_AUTOCOMPLETE_MODEL_ID = "mistralai/devstral-small";
+const DEFAULT_NVIDIA_MODEL_ID = "meta/llama-3.1-8b-instruct";
 
 function resolveAutocompleteDefaultModelId(models: Array<{ id: string; name: string }>): string {
   if (models.some((model) => model.id === DEFAULT_AUTOCOMPLETE_MODEL_ID)) {
@@ -297,12 +297,18 @@ export const AISettings = () => {
 
   const handleProviderChange = (newProviderId: string) => {
     const provider = providers.find((p) => p.id === newProviderId);
+    const dynamicModelId = useAIChatStore.getState().dynamicModels[newProviderId]?.[0]?.id;
+    const nextModelId =
+      provider?.models[0]?.id ||
+      dynamicModelId ||
+      (newProviderId === "nvidia" ? DEFAULT_NVIDIA_MODEL_ID : "");
+
     updateSetting("aiProviderId", newProviderId);
     if (newProviderId === CUSTOM_CHAT_PROVIDER_ID) {
       updateSetting("aiModelId", settings.aiCustomModelId || settings.aiAutocompleteCustomModelId);
       return;
     }
-    updateSetting("aiModelId", provider?.models[0]?.id || "");
+    updateSetting("aiModelId", nextModelId);
   };
 
   const loadAutocompleteModels = async () => {
@@ -438,8 +444,7 @@ export const AISettings = () => {
 
   return (
     <SettingsView>
-      <CodexSettings />
-      <Section title="Coodi Agent">
+      <Section title="Agent Mode" hideHeader={false}>
         <SettingRow
           label="Provider"
           description="Choose the provider used by Coodi Agent"

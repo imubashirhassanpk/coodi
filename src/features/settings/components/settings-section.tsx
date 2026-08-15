@@ -17,6 +17,7 @@ interface SectionProps {
   description?: string;
   children: ReactNode;
   className?: string;
+  hideHeader?: boolean;
 }
 
 interface SettingsViewProps extends ComponentProps<"div"> {
@@ -48,11 +49,18 @@ export const SETTINGS_CONTROL_WIDTHS = {
   textWide: "w-56 max-w-full",
 } as const;
 
-export default function Section({ title, description, children, className }: SectionProps) {
+export default function Section({
+  title,
+  description,
+  children,
+  className,
+  hideHeader = true,
+}: SectionProps) {
   return (
     <section
       className={cn(
-        "rounded-lg transition-[background-color,box-shadow] first:[&>.settings-section-header]:hidden data-[settings-search-section-active=true]:bg-primary/5 data-[settings-search-section-active=true]:ring-1 data-[settings-search-section-active=true]:ring-primary/25",
+        "rounded-lg transition-[background-color,box-shadow] data-[settings-search-section-active=true]:bg-primary/5 data-[settings-search-section-active=true]:ring-1 data-[settings-search-section-active=true]:ring-primary/25",
+        hideHeader && "first:[&>.settings-section-header]:hidden",
         className,
       )}
       data-settings-section={title}

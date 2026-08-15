@@ -1,4 +1,8 @@
-import { CaretDownIcon as CaretDown, MagnifyingGlassIcon as Search } from "@/ui/icons";
+import {
+  CaretDownIcon as CaretDown,
+  MagnifyingGlassIcon as Search,
+  XIcon as X,
+} from "@/ui/icons";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSettingsStore } from "@/features/settings/stores/settings.store";
 import { resolveVisibleSettingsSection } from "@/features/settings/lib/settings-access";
@@ -8,7 +12,6 @@ import {
 } from "@/features/settings/lib/settings-search";
 import { type SettingsTab, useUIState } from "@/features/window/stores/ui-state.store";
 import { Card } from "@/ui/card";
-import Dialog from "@/ui/dialog";
 import { Dropdown, type MenuItem } from "@/ui/dropdown";
 import { Empty, EmptyDescription } from "@/ui/empty";
 import Input from "@/ui/input";
@@ -206,78 +209,81 @@ const SettingsDialog = ({ isOpen, onClose }: SettingsDialogProps) => {
 
   return (
     <>
-      <Dialog
-        onClose={onClose}
-        scrollContent={false}
-        title={
-          <>
-            <span className="max-[720px]:hidden">Settings</span>
+      <section
+        data-settings-page="true"
+        aria-label="Settings"
+        className="flex size-full min-h-0 min-w-0 flex-col overflow-hidden bg-surface"
+      >
+        <header className="flex shrink-0 items-center justify-between gap-3 border-border/70 border-b bg-surface px-4 py-3 max-[720px]:flex-wrap max-[720px]:gap-2">
+          <div className="flex min-w-0 items-center gap-2">
+            <h1 className="font-sans ui-text-base font-medium text-foreground">Settings</h1>
             <button
               ref={tabDropdownRef}
               type="button"
               className="hidden h-7 max-w-48 min-w-0 items-center gap-1.5 rounded-md border border-border/70 bg-surface/50 px-2 text-left text-foreground transition-colors hover:bg-accent max-[720px]:inline-flex"
               onClick={() => setIsTabDropdownOpen(true)}
+              aria-label={`Current settings section: ${activeTabItem.label}`}
             >
               <ActiveTabIcon className="size-4 shrink-0 text-subtle-foreground" weight="duotone" />
               <span className="truncate">{activeTabItem.label}</span>
               <CaretDown className="size-3.5 shrink-0 text-subtle-foreground" />
             </button>
-          </>
-        }
-        headerActions={
-          <div ref={searchInputAnchorRef} className="w-64 max-[720px]:w-44 max-[520px]:w-32">
-            <Input
-              type="text"
-              placeholder="Search settings..."
-              value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-                setIsSearchDropdownOpen(e.target.value.trim().length > 0);
-              }}
-              onFocus={() => {
-                if (searchQuery.trim()) setIsSearchDropdownOpen(true);
-              }}
-              onKeyDown={(event) => {
-                if (event.key === "Escape") {
-                  setIsSearchDropdownOpen(false);
-                  return;
-                }
-
-                if (event.key !== "Enter") return;
-                const firstResult = visibleSearchResults[0];
-                if (!firstResult) return;
-                event.preventDefault();
-                navigateToSearchResult(firstResult);
-              }}
-              leftIcon={Search}
-              size="md"
-              className="w-full"
-            />
           </div>
-        }
-        classNames={{
-          modal:
-            "h-[calc(100dvh-48px)] max-h-230 w-[90vw] max-w-280 min-w-0 border-0 bg-surface max-[720px]:h-[calc(100dvh-32px)] max-[720px]:w-[calc(100vw-32px)] [&>div:first-child]:border-b-0",
-          header:
-            "bg-surface max-[720px]:grid max-[720px]:grid-cols-[minmax(0,1fr)_auto] max-[720px]:gap-2",
-          title: "max-[720px]:min-w-0",
-          headerActions: "max-[720px]:min-w-0",
-          content: "flex h-full min-h-0 p-0",
-        }}
-      >
-        <div className="flex size-full min-h-0 min-w-0 overflow-hidden">
-          <div className="h-full w-52 shrink-0 max-[720px]:hidden">
+          <div className="flex min-w-0 items-center gap-2 max-[720px]:order-3 max-[720px]:w-full">
+            <div ref={searchInputAnchorRef} className="w-64 max-[720px]:w-full">
+              <Input
+                type="text"
+                placeholder="Search settings..."
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setIsSearchDropdownOpen(e.target.value.trim().length > 0);
+                }}
+                onFocus={() => {
+                  if (searchQuery.trim()) setIsSearchDropdownOpen(true);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") {
+                    setIsSearchDropdownOpen(false);
+                    return;
+                  }
+
+                  if (event.key !== "Enter") return;
+                  const firstResult = visibleSearchResults[0];
+                  if (!firstResult) return;
+                  event.preventDefault();
+                  navigateToSearchResult(firstResult);
+                }}
+                leftIcon={Search}
+                size="md"
+                className="w-full"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex size-7 shrink-0 items-center justify-center rounded-md border border-transparent text-subtle-foreground transition-colors hover:border-border/70 hover:bg-accent hover:text-foreground"
+              aria-label="Close settings"
+              title="Close settings"
+            >
+              <X className="size-4" />
+            </button>
+          </div>
+        </header>
+
+        <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
+          <aside className="h-full w-52 shrink-0 max-[720px]:hidden">
             <SettingsVerticalTabs
               activeTab={activeTab}
               onTabChange={handleTabChange}
               panelIdForTab={(tab) => `settings-panel-${tab}`}
             />
-          </div>
+          </aside>
 
           <Card
             variant="elevated"
             size="flush"
-            className="@container/settings mt-0 mr-2 mb-2 ml-0 flex min-h-0 min-w-0 flex-1 flex-col bg-background max-[720px]:ml-2"
+            className="@container/settings m-2 flex min-h-0 min-w-0 flex-1 flex-col bg-background"
           >
             <ScrollArea
               orientation="vertical"
@@ -296,7 +302,7 @@ const SettingsDialog = ({ isOpen, onClose }: SettingsDialogProps) => {
             </ScrollArea>
           </Card>
         </div>
-      </Dialog>
+      </section>
       <Dropdown
         isOpen={isTabDropdownOpen}
         anchorRef={tabDropdownRef}

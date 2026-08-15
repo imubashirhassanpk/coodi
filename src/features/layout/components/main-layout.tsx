@@ -16,6 +16,7 @@ import { CachedWorkspaceSplitViews } from "@/features/panes/components/split-vie
 import { usePaneKeyboard } from "@/features/panes/hooks/use-pane-keyboard";
 import type { PaneContent } from "@/features/panes/types/pane-content.types";
 import { useSettingsStore } from "@/features/settings/stores/settings.store";
+import SettingsDialog from "@/features/settings/components/settings-dialog";
 import { useVimStore } from "@/features/vim/stores/vim.store";
 import { isWslPath } from "@/features/wsl/utils/wsl-path";
 import { useTerminalStore } from "@/features/terminal/stores/terminal.store";
@@ -89,6 +90,8 @@ export function MainLayout() {
   useCollaborationPresence();
 
   const isSidebarVisible = useUIState((state) => state.isSidebarVisible);
+  const isSettingsDialogVisible = useUIState((state) => state.isSettingsDialogVisible);
+  const setIsSettingsDialogVisible = useUIState((state) => state.setIsSettingsDialogVisible);
   const activityRailExpanded = useSettingsStore((state) => state.settings.activityRailExpanded);
   const activityRailWidth = useSettingsStore((state) => state.settings.activityRailWidth);
   const sidebarWidth = useSettingsStore((state) => state.settings.sidebarWidth);
@@ -302,78 +305,89 @@ export function MainLayout() {
       <TitleBarWithSettings />
 
       <div className="coodi-workbench-glass relative z-10 flex flex-1 flex-col overflow-hidden">
-        <div
-          className="flex flex-1 flex-row overflow-hidden pr-(--coodi-workbench-gap)"
-          style={{ minHeight: 0 }}
-        >
-          <SidebarActivityRail expanded={activityRailExpanded} />
-          <ResizablePane
-            position="left"
-            widthKey="sidebarWidth"
-            hidden={!isSidebarVisible}
-            reservedWidth={leftPaneReservedWidth}
-          >
-            <MainSidebar paneLevel="primary" />
-          </ResizablePane>
-
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-            <div
-              className={cn(
-                "coodi-glass-island relative min-h-0 flex-1 overflow-hidden border-border/70 border-y border-r bg-background",
-                !isSidebarVisible && "rounded-l-xl border-l",
-                !visibleInlineAiChat && !isRightSidebarVisible && "rounded-r-xl",
-              )}
-            >
-              <CachedWorkspaceSplitViews />
-            </div>
-            {terminalWidthMode === "editor" && deferredSurfacesReady && (
-              <Suspense fallback={null}>
-                <BottomPane />
-              </Suspense>
-            )}
-          </div>
-
-          {/* Right side panes are ordered from inner to edge. */}
-          {visibleInlineAiChat ? (
-            <ResizablePane
-              position="right"
-              widthKey="aiChatWidth"
-              outerEdge={!isRightSidebarVisible}
-              reservedWidth={aiPaneReservedWidth}
-            >
-              <Suspense fallback={null}>
-                <AIChat
-                  mode="chat"
-                  surfaceId="activity-sidebar"
-                  activeBuffer={activeBuffer}
-                  buffers={buffers}
-                  allProjectFiles={allProjectFiles}
-                />
-              </Suspense>
-            </ResizablePane>
-          ) : null}
-
-          <ResizablePane
-            position="right"
-            widthKey="sidebarWidth"
-            hidden={!isRightSidebarVisible}
-            reservedWidth={rightPaneReservedWidth}
-          >
-            <MainSidebar
-              paneLevel="edge"
-              activeView={activeRightSidebarView}
-              isGitActive={false}
-              isGitHubPRsActive={false}
+        {isSettingsDialogVisible ? (
+          <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden pr-(--coodi-workbench-gap)">
+            <SettingsDialog
+              isOpen
+              onClose={() => setIsSettingsDialogVisible(false)}
             />
-          </ResizablePane>
-        </div>
-
-        {terminalWidthMode === "full" && deferredSurfacesReady && (
-          <div className="px-(--coodi-workbench-gap)">
-            <Suspense fallback={null}>
-              <BottomPane />
-            </Suspense>
           </div>
+        ) : (
+          <>
+            <div
+              className="flex flex-1 flex-row overflow-hidden pr-(--coodi-workbench-gap)"
+              style={{ minHeight: 0 }}
+            >
+              <SidebarActivityRail expanded={activityRailExpanded} />
+              <ResizablePane
+                position="left"
+                widthKey="sidebarWidth"
+                hidden={!isSidebarVisible}
+                reservedWidth={leftPaneReservedWidth}
+              >
+                <MainSidebar paneLevel="primary" />
+              </ResizablePane>
+
+              <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+                <div
+                  className={cn(
+                    "coodi-glass-island relative min-h-0 flex-1 overflow-hidden border-border/70 border-y border-r bg-background",
+                    !isSidebarVisible && "rounded-l-xl border-l",
+                    !visibleInlineAiChat && !isRightSidebarVisible && "rounded-r-xl",
+                  )}
+                >
+                  <CachedWorkspaceSplitViews />
+                </div>
+                {terminalWidthMode === "editor" && deferredSurfacesReady && (
+                  <Suspense fallback={null}>
+                    <BottomPane />
+                  </Suspense>
+                )}
+              </div>
+
+              {/* Right side panes are ordered from inner to edge. */}
+              {visibleInlineAiChat ? (
+                <ResizablePane
+                  position="right"
+                  widthKey="aiChatWidth"
+                  outerEdge={!isRightSidebarVisible}
+                  reservedWidth={aiPaneReservedWidth}
+                >
+                  <Suspense fallback={null}>
+                    <AIChat
+                      mode="chat"
+                      surfaceId="activity-sidebar"
+                      activeBuffer={activeBuffer}
+                      buffers={buffers}
+                      allProjectFiles={allProjectFiles}
+                    />
+                  </Suspense>
+                </ResizablePane>
+              ) : null}
+
+              <ResizablePane
+                position="right"
+                widthKey="sidebarWidth"
+                hidden={!isRightSidebarVisible}
+                reservedWidth={rightPaneReservedWidth}
+              >
+                <MainSidebar
+                  paneLevel="edge"
+                  activeView={activeRightSidebarView}
+                  isGitActive={false}
+                  isGitHubPRsActive={false}
+                />
+              </ResizablePane>
+            </div>
+
+            {terminalWidthMode === "full" && deferredSurfacesReady && (
+              <div className="px-(--coodi-workbench-gap)">
+                <Suspense fallback={null}>
+                  <BottomPane />
+                </Suspense>
+              </div>
+            )}
+          </>
         )}
       </div>
 

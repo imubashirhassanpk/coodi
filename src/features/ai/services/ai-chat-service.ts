@@ -205,12 +205,18 @@ export const getChatCompletionStream = async (
     const provider = resolved.provider;
     const model = resolved.model;
 
-    if (providerId === "custom" && !model) {
-      throw new Error("Custom provider model is required. Add one in Settings -> Agent.");
+    if (!provider) {
+      throw new Error(
+        `Provider "${providerId}" is unavailable. Open Settings -> Agent Mode and select a provider.`,
+      );
     }
 
-    if (!provider || !model) {
-      throw new Error(`Provider or model not found: ${providerId}/${modelId}`);
+    if (!model) {
+      throw new Error(
+        providerId === "custom"
+          ? "Custom provider model is required. Add one in Settings -> Agent Mode."
+          : `No model is selected for ${provider.name}. Open Settings -> Agent Mode, save your API key, and select or refresh a model.`,
+      );
     }
 
     const settings = useSettingsStore.getState().settings;
@@ -221,7 +227,7 @@ export const getChatCompletionStream = async (
         ? await getCustomProviderApiToken()
         : await getProviderApiToken(providerId);
     if (!apiKey && provider.requiresApiKey) {
-      throw new Error(`${provider.name} API key not found`);
+      throw new Error(`${provider.name} API key not found. Add it in Settings -> Agent Mode -> Manage keys.`);
     }
 
     if (providerId === "custom" && !customProviderBaseUrl) {
@@ -237,7 +243,7 @@ export const getChatCompletionStream = async (
       const ollamaBaseUrl = useSettingsStore.getState().settings.ollamaBaseUrl;
       if (ollamaBaseUrl && isOllamaCloudUrl(ollamaBaseUrl)) {
         throw new Error(
-          "Ollama Cloud requires an API key. Add one in Settings -> Agent -> Ollama.",
+          "Ollama Cloud requires an API key. Add one in Settings -> Agent Mode -> Ollama.",
         );
       }
     }
