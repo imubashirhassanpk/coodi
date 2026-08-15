@@ -74,6 +74,17 @@ jobs:
         shell: bash
         run: bun scripts/postinstall.ts
 
+      - name: Install Strawberry Perl for OpenSSL
+        shell: pwsh
+        run: |
+          choco install strawberryperl --no-progress --yes
+          "C:\\Strawberry\\perl\\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          "C:\\Strawberry\\c\\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Verify Perl modules for OpenSSL
+        shell: bash
+        run: perl -MLocale::Maketext::Simple -e 'print "Strawberry Perl OpenSSL prerequisites OK\\n"'
+
       - name: Run settings and AI contract tests
         shell: bash
         run: pnpm exec vp test run src/features/settings/tests/settings-ui-contract.test.ts src/features/ai/tests/openai-provider-models.test.ts
