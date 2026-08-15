@@ -103,10 +103,16 @@ jobs:
         run: pnpm exec tsc --noEmit --pretty false
 
       - name: Build Windows NSIS installer
-        shell: bash
+        shell: pwsh
         env:
           CARGO_BUILD_JOBS: 2
-        run: pnpm exec tauri build --target x86_64-pc-windows-msvc --bundles nsis
+        run: |
+          $env:Path = "C:\\Strawberry\\perl\\site\\bin;C:\\Strawberry\\perl\\bin;C:\\Strawberry\\c\\bin;$env:Path"
+          $env:PERL = "C:\\Strawberry\\perl\\bin\\perl.exe"
+          perl.exe -MLocale::Maketext::Simple -MParams::Check -e 'print "Build Perl prerequisites OK\\n"'
+          if ($LASTEXITCODE -ne 0) { throw "Strawberry Perl is not usable for the Windows build" }
+          pnpm exec tauri build --target x86_64-pc-windows-msvc --bundles nsis
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Upload NSIS installer artifact
         uses: actions/upload-artifact@v4
