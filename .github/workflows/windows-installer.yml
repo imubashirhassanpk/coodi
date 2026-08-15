@@ -78,12 +78,19 @@ jobs:
         shell: pwsh
         run: |
           choco install strawberryperl --no-progress --yes
+          $perlPath = "C:\\Strawberry\\perl\\site\\bin;C:\\Strawberry\\perl\\bin;C:\\Strawberry\\c\\bin"
+          "PATH=$perlPath;$env:PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "C:\\Strawberry\\perl\\site\\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
           "C:\\Strawberry\\perl\\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
           "C:\\Strawberry\\c\\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
-      - name: Verify Perl modules for OpenSSL
-        shell: bash
-        run: perl -MLocale::Maketext::Simple -e 'print "Strawberry Perl OpenSSL prerequisites OK\\n"'
+      - name: Install OpenSSL Perl modules
+        shell: pwsh
+        run: |
+          $env:Path = "C:\\Strawberry\\perl\\site\\bin;C:\\Strawberry\\perl\\bin;C:\\Strawberry\\c\\bin;$env:Path"
+          cpanm.exe --notest Locale::Maketext::Simple Params::Check
+          if ($LASTEXITCODE -ne 0) { throw "Failed to install OpenSSL Perl modules" }
+          perl.exe -MLocale::Maketext::Simple -MParams::Check -e "Write-Output 'Strawberry Perl OpenSSL prerequisites OK'"
 
       - name: Run settings and AI contract tests
         shell: bash
