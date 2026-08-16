@@ -304,9 +304,9 @@ export function MainLayout() {
 
       <TitleBarWithSettings />
 
-      <div className="coodi-workbench-glass relative z-10 flex flex-1 flex-col overflow-hidden">
+      <div className="coodi-workbench-glass relative z-10 flex h-0 min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         {isSettingsDialogVisible ? (
-          <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden pr-(--coodi-workbench-gap)">
+          <div className="flex h-0 min-h-0 min-w-0 flex-1 overflow-hidden pr-(--coodi-workbench-gap)">
             <SettingsDialog
               isOpen
               onClose={() => setIsSettingsDialogVisible(false)}

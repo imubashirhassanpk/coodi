@@ -93,7 +93,8 @@ describe("settings UI contract", () => {
 
     expect(settingsDialogSource).toContain('data-settings-page="true"');
     expect(settingsDialogSource).toContain('className="flex size-full min-h-0 min-w-0 flex-col overflow-hidden bg-surface"');
-    expect(settingsDialogSource).toContain('className="min-h-0 min-w-0 flex-1"');
+    expect(settingsDialogSource).toContain('className="h-0 min-h-0 min-w-0 flex-1"');
+    expect(settingsDialogSource).toContain('contentClassName="h-max w-full max-w-full overflow-x-hidden p-3 max-[720px]:p-2"');
     expect(settingsDialogSource).toContain('orientation="vertical"');
     expect(settingsDialogSource).toContain("overflow-x-hidden");
     expect(settingsDialogSource).not.toContain("scrollContent={false}");

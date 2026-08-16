@@ -283,12 +283,12 @@ const SettingsDialog = ({ isOpen, onClose }: SettingsDialogProps) => {
           <Card
             variant="elevated"
             size="flush"
-            className="@container/settings m-2 flex min-h-0 min-w-0 flex-1 flex-col bg-background"
+            className="@container/settings m-2 flex h-0 min-h-0 min-w-0 flex-1 flex-col bg-background"
           >
             <ScrollArea
               orientation="vertical"
-              className="min-h-0 min-w-0 flex-1"
-              contentClassName="w-full max-w-full overflow-x-hidden p-3 max-[720px]:p-2"
+              className="h-0 min-h-0 min-w-0 flex-1"
+              contentClassName="h-max w-full max-w-full overflow-x-hidden p-3 max-[720px]:p-2"
               viewportProps={{
                 ref: contentRef,
                 id: activePanelId,

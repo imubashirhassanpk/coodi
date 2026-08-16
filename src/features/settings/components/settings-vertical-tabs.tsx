@@ -99,10 +99,10 @@ export const SettingsVerticalTabs = ({
         value={activeTab}
         onValueChange={(value) => onTabChange(value as SettingsTab)}
         orientation="vertical"
-        className="min-h-0 flex-1 gap-0"
+        className="h-0 min-h-0 flex-1 gap-0"
       >
         <ScrollArea
-          className="min-h-0 min-w-0 flex-1"
+          className="h-0 min-h-0 min-w-0 flex-1"
           contentClassName="p-2"
           viewportProps={{
             "aria-label": "Settings navigation",
