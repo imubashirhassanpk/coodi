@@ -97,16 +97,49 @@ describe("settings UI contract", () => {
     expect(settingsDialogSource).toContain('className="flex size-full min-h-0 min-w-0 flex-col overflow-hidden bg-surface"');
     expect(settingsDialogSource).toContain('className="flex h-0 min-h-0 min-w-0 flex-1 overflow-hidden"');
     expect(settingsDialogSource).toContain('className="h-0 min-h-0 min-w-0 flex-1"');
-    expect(settingsDialogSource).toContain('viewportClassName="h-full"');
-    expect(settingsDialogSource).toContain('contentClassName="h-max w-full max-w-full overflow-x-hidden p-3 max-[720px]:p-2"');
+    expect(settingsDialogSource).toContain('viewportClassName="h-full min-h-0 min-w-0"');
+    expect(settingsDialogSource).toContain(
+      'contentClassName="min-h-full h-max w-full max-w-full min-w-0 overflow-x-hidden p-3 max-[720px]:p-2"',
+    );
     expect(settingsDialogSource).toContain('orientation="vertical"');
     expect(settingsDialogSource).toContain("overflow-x-hidden");
     expect(settingsDialogSource).not.toContain("scrollContent={false}");
+
+    for (const tab of [
+      "general",
+      "editor",
+      "git",
+      "appearance",
+      "ai",
+      "keyboard",
+      "advanced",
+      "terminal",
+      "file-explorer",
+      "about",
+    ]) {
+      expect(settingsDialogSource).toContain(`case "${tab}":`);
+    }
+
     expect(mainLayoutSource).toContain(
       'className="coodi-workbench-glass relative z-10 flex h-0 min-h-0 min-w-0 flex-1 flex-col overflow-hidden"',
     );
     expect(mainLayoutSource).toContain(
       'className="flex h-0 min-h-0 min-w-0 flex-1 overflow-hidden pr-(--coodi-workbench-gap)"',
+    );
+  });
+
+  it("keeps Settings navigation bounded and clears stale targeted tabs", () => {
+    const tabsSource = readFileSync(`${componentsDirectory}/settings-vertical-tabs.tsx`, "utf8");
+    const modalSource = readFileSync(
+      `${fileURLToPath(new URL("../../window/stores/ui-state/modal-slice.ts", import.meta.url))}`,
+      "utf8",
+    );
+
+    expect(tabsSource).toContain('viewportClassName="h-full min-h-0 min-w-0"');
+    expect(tabsSource).toContain('contentClassName="min-h-full min-w-0 p-2"');
+    expect(modalSource).toContain("settingsInitialTab: null");
+    expect(modalSource).toContain(
+      "set({ isSettingsDialogVisible: false, settingsInitialTab: null });",
     );
   });
 

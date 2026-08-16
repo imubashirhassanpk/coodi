@@ -85,7 +85,7 @@ export const createModalSlice: StateCreator<ModalSlice, [], [], ModalSlice> = (s
       return true;
     }
     if (state.isSettingsDialogVisible) {
-      set({ isSettingsDialogVisible: false });
+      set({ isSettingsDialogVisible: false, settingsInitialTab: null });
       return true;
     }
     if (state.isBranchManagerVisible) {
@@ -193,9 +193,10 @@ export const createModalSlice: StateCreator<ModalSlice, [], [], ModalSlice> = (s
         isBranchManagerVisible: false,
         isProjectPickerVisible: false,
         isDatabaseConnectionVisible: false,
+        settingsInitialTab: null,
       });
     } else {
-      set({ isSettingsDialogVisible: v });
+      set({ isSettingsDialogVisible: v, settingsInitialTab: null });
     }
   },
 

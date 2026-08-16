@@ -288,8 +288,8 @@ const SettingsDialog = ({ isOpen, onClose }: SettingsDialogProps) => {
             <ScrollArea
               orientation="vertical"
               className="h-0 min-h-0 min-w-0 flex-1"
-              viewportClassName="h-full"
-              contentClassName="h-max w-full max-w-full overflow-x-hidden p-3 max-[720px]:p-2"
+              viewportClassName="h-full min-h-0 min-w-0"
+              contentClassName="min-h-full h-max w-full max-w-full min-w-0 overflow-x-hidden p-3 max-[720px]:p-2"
               viewportProps={{
                 ref: contentRef,
                 id: activePanelId,
