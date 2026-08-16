@@ -170,6 +170,7 @@ fn main() {
          github_get_workflow_run_details,
          github_get_workflow_job_logs,
          // AI Provider token commands
+         preview_byok_tool,
          execute_byok_tool,
          store_ai_provider_token,
          get_ai_provider_token,

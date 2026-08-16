@@ -24,7 +24,7 @@ describe("custom OpenAI-compatible provider", () => {
       new Response(
         JSON.stringify({
           data: [
-            { id: "qwen2.5-coder:7b", name: "Qwen 2.5 Coder 7B" },
+            { id: "qwen2.5-coder:7b", name: "Qwen 2.5 Coder 7B", capabilities: { tool_calling: true } },
             { id: "local-model", name: "Local Model" },
           ],
         }),
@@ -36,7 +36,7 @@ describe("custom OpenAI-compatible provider", () => {
     provider.setBaseUrl("https://llm.example.test/v1/");
 
     await expect(provider.getModels("custom-secret")).resolves.toEqual([
-      { id: "qwen2.5-coder:7b", name: "Qwen 2.5 Coder 7B" },
+      { id: "qwen2.5-coder:7b", name: "Qwen 2.5 Coder 7B", supportsToolCalling: true },
       { id: "local-model", name: "Local Model" },
     ]);
 

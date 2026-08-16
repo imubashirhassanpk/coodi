@@ -18,10 +18,24 @@ export type ByokToolName =
 
 export interface ByokToolPermissionRequest {
   requestId: string;
+  toolId: string;
   toolName: ByokToolName;
   description: string;
   resource: string;
   input: Record<string, unknown>;
+}
+
+export interface ByokToolPermissionDecision {
+  approved: boolean;
+  remember: boolean;
+}
+
+export interface ByokToolPreview {
+  kind: "file" | "command" | "none";
+  path?: string;
+  oldText?: string;
+  newText?: string;
+  command?: string;
 }
 
 export interface ByokToolResult {
@@ -186,6 +200,35 @@ export function getByokToolDescription(
     return { description: `List workspace files under ${path || "."}`, resource: path || "." };
   }
   return { description: `${toolName.replace(/_/g, " ")} in workspace file ${path}`, resource: path };
+}
+
+export async function previewByokTool(
+  toolCall: ProviderToolCall,
+  context: ByokToolExecutionContext | ContextInfo,
+): Promise<{ preview?: ByokToolPreview; error?: string }> {
+  if (!isByokToolName(toolCall.function.name)) {
+    return { error: `Unsupported BYOK tool: ${toolCall.function.name}` };
+  }
+
+  let input: Record<string, unknown>;
+  try {
+    input = parseByokToolArguments(toolCall.function.arguments);
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Invalid tool arguments" };
+  }
+
+  try {
+    const preview = (await invoke("preview_byok_tool", {
+      request: {
+        workspaceRoot: context.projectRoot ?? null,
+        toolName: toolCall.function.name,
+        arguments: input,
+      },
+    })) as ByokToolPreview;
+    return { preview };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : String(error) };
+  }
 }
 
 export async function executeByokTool(

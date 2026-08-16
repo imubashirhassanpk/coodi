@@ -42,8 +42,10 @@ import {
   BYOK_TOOL_MAX_ROUNDS,
   executeByokTool,
   getByokToolDescription,
+  previewByokTool,
   isByokToolName,
   parseByokToolArguments,
+  type ByokToolPermissionDecision,
   type ByokToolPermissionRequest,
 } from "../lib/byok-tools";
 
@@ -228,7 +230,9 @@ export const getChatCompletionStream = async (
   onResourceChunk?: (uri: string, name: string | null) => void,
   chatId?: string,
   systemPromptOverride?: string,
-  onByokToolPermission?: (request: ByokToolPermissionRequest) => Promise<boolean>,
+  onByokToolPermission?: (
+    request: ByokToolPermissionRequest,
+  ) => Promise<boolean | ByokToolPermissionDecision>,
 ): Promise<void> => {
   try {
     if (agentId === CODEX_INTEGRATION_ID) {
@@ -456,6 +460,24 @@ export const getChatCompletionStream = async (
 
         const toolKind = getByokToolKind(toolName);
         const locations = typeof input.path === "string" ? [{ path: input.path }] : [];
+                const validatedToolName = isByokToolName(toolName) ? toolName : null;
+        let preview: Awaited<ReturnType<typeof previewByokTool>>["preview"];
+        if (!toolError && validatedToolName && ["create_file", "write_file", "apply_patch", "run_terminal_command"].includes(validatedToolName)) {
+          const previewResult = await previewByokTool(toolCall, context);
+          preview = previewResult.preview;
+          toolError = previewResult.error;
+        }
+
+        const previewForEvent =
+          preview?.kind === "file" || preview?.kind === "command"
+            ? {
+                kind: preview.kind,
+                path: preview.path,
+                oldText: preview.oldText,
+                newText: preview.newText,
+                command: preview.command,
+              }
+            : undefined;
         onToolUse?.({
           type: "tool_start",
           sessionId: chatId ?? "byok",
@@ -465,9 +487,12 @@ export const getChatCompletionStream = async (
           kind: toolKind,
           status: "in_progress",
           locations,
+          provider: "byok",
+          permissionStatus: toolError ? "denied" : "pending",
+          preview: previewForEvent,
         });
 
-        const validatedToolName = isByokToolName(toolName) ? toolName : null;
+
         if (!toolError && !validatedToolName) {
           toolError = `Unsupported BYOK tool: ${toolName}`;
         }
@@ -476,14 +501,29 @@ export const getChatCompletionStream = async (
           const permissionDetails = getByokToolDescription(validatedToolName, input);
           const permissionRequest: ByokToolPermissionRequest = {
             requestId: `byok-${chatId ?? "chat"}-${round}-${toolCall.id}`,
+            toolId: toolCall.id,
             toolName: validatedToolName,
             description: permissionDetails.description,
             resource: permissionDetails.resource,
             input,
           };
-          const approved = onByokToolPermission
+          const approval = onByokToolPermission
             ? await onByokToolPermission(permissionRequest)
-            : false;
+            : { approved: false, remember: false };
+          const approved = typeof approval === "boolean" ? approval : approval.approved;
+          onToolUpdate?.({
+            type: "tool_update",
+            sessionId: chatId ?? "byok",
+            toolId: toolCall.id,
+            toolName,
+            input,
+            kind: toolKind,
+            status: approved ? "in_progress" : "failed",
+            locations,
+            provider: "byok",
+            permissionStatus: approved ? "approved" : "denied",
+            preview: previewForEvent ?? null,
+          });
           if (!approved) {
             toolError = "User denied this BYOK tool request.";
           } else {

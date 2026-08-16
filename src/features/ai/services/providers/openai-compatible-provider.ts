@@ -76,8 +76,22 @@ export class OpenAICompatibleProvider extends AIProvider {
     }
 
     const data = (await response.json()) as {
-      data?: Array<{ id?: string; name?: string; max_context_length?: number }>;
-      models?: Array<{ id?: string; name?: string; max_context_length?: number }>;
+      data?: Array<{
+        id?: string;
+        name?: string;
+        max_context_length?: number;
+        supports_tools?: boolean;
+        supports_tool_calling?: boolean;
+        capabilities?: { tool_calling?: boolean; tools?: boolean };
+      }>;
+      models?: Array<{
+        id?: string;
+        name?: string;
+        max_context_length?: number;
+        supports_tools?: boolean;
+        supports_tool_calling?: boolean;
+        capabilities?: { tool_calling?: boolean; tools?: boolean };
+      }>;
     };
     const models = Array.isArray(data.data)
       ? data.data
@@ -96,6 +110,11 @@ export class OpenAICompatibleProvider extends AIProvider {
       };
       if (typeof model.max_context_length === "number") {
         parsedModel.maxTokens = model.max_context_length;
+      }
+      const supportsToolCalling =
+        model.supports_tool_calling ?? model.supports_tools ?? model.capabilities?.tool_calling ?? model.capabilities?.tools;
+      if (typeof supportsToolCalling === "boolean") {
+        parsedModel.supportsToolCalling = supportsToolCalling;
       }
       parsedModels.set(id, parsedModel);
     }

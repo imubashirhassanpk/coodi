@@ -64,12 +64,18 @@ export class NvidiaProvider extends AIProvider {
           name?: string;
           max_model_len?: number;
           max_context_length?: number;
+          supports_tools?: boolean;
+          supports_tool_calling?: boolean;
+          capabilities?: { tool_calling?: boolean; tools?: boolean };
         }>;
         models?: Array<{
           id?: string;
           name?: string;
           max_model_len?: number;
           max_context_length?: number;
+          supports_tools?: boolean;
+          supports_tool_calling?: boolean;
+          capabilities?: { tool_calling?: boolean; tools?: boolean };
         }>;
       };
       const models = Array.isArray(data.data) ? data.data : Array.isArray(data.models) ? data.models : [];
@@ -85,6 +91,11 @@ export class NvidiaProvider extends AIProvider {
           id,
           name: formatModelName(id, name),
         };
+        const supportsToolCalling =
+          model.supports_tool_calling ?? model.supports_tools ?? model.capabilities?.tool_calling ?? model.capabilities?.tools;
+        if (typeof supportsToolCalling === "boolean") {
+          parsedModel.supportsToolCalling = supportsToolCalling;
+        }
         const maxTokens = model.max_context_length ?? model.max_model_len;
         if (typeof maxTokens === "number") parsedModel.maxTokens = maxTokens;
         uniqueModels.set(id, parsedModel);

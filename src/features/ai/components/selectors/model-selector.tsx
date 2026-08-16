@@ -31,8 +31,14 @@ export function ModelSelector({
   tooltip,
 }: ModelSelectorProps) {
   const isComposer = appearance === "composer";
-  const { availableModels, currentModelName, hasHostedAi, isCustomProvider, modelFetchError } =
-    useAIModelOptions(providerId, modelId, onChange);
+  const {
+    availableModels,
+    currentModelName,
+    hasHostedAi,
+    isCustomProvider,
+    modelFetchError,
+    selectedModelSupportsToolCalling,
+  } = useAIModelOptions(providerId, modelId, onChange);
 
   return (
     <Select
@@ -70,10 +76,13 @@ export function ModelSelector({
       menuMinWidth={isComposer ? 260 : 0}
       menuAnimated={!isComposer}
       menuHeader={
-        modelFetchError ? (
+        modelFetchError || selectedModelSupportsToolCalling === false ? (
           <Alert tone="warning" role="status" className="m-1 w-auto">
             <WarningCircle />
-            <AlertDescription>{modelFetchError}</AlertDescription>
+            <AlertDescription>
+              {modelFetchError ||
+                "This model does not advertise tool calling. BYOK file editing may be unavailable."}
+            </AlertDescription>
           </Alert>
         ) : undefined
       }

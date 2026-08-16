@@ -49,7 +49,10 @@ import { cn } from "@/utils/cn";
 import { useChatActions, useChatState } from "../../hooks/use-chat-store";
 import AIChatInputBar from "../input/chat-input-bar";
 import { AcpPermissionPrompt, type AcpPermissionRequest } from "./acp-permission-prompt";
-import type { ByokToolPermissionRequest } from "@/features/ai/lib/byok-tools";
+import type {
+  ByokToolPermissionDecision,
+  ByokToolPermissionRequest,
+} from "@/features/ai/lib/byok-tools";
 import { AgentShortcuts } from "./agent-shortcuts";
 import { ChatHeader } from "./chat-header";
 import { ChatMessages } from "./chat-messages";
@@ -84,7 +87,10 @@ const AIChat = memo(function AIChat({
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const [permissionQueue, setPermissionQueue] = useState<ChatPermissionRequest[]>([]);
-  const byokPermissionResolversRef = useRef(new Map<string, (approved: boolean) => void>());
+  const byokPermissionResolversRef = useRef(
+    new Map<string, (decision: ByokToolPermissionDecision) => void>(),
+  );
+  const byokPermissionPolicyRef = useRef(new Map<string, boolean>());
   const [acpEvents, setAcpEvents] = useState<ChatAcpEvent[]>([]);
   const [isMessageSearchOpen, setIsMessageSearchOpen] = useState(false);
   const [messageSearchQuery, setMessageSearchQuery] = useState("");
@@ -351,7 +357,7 @@ const AIChat = memo(function AIChat({
     setPermissionQueue([]);
     for (const permission of pendingPermissions) {
       if (permission.source === "byok") {
-        byokPermissionResolversRef.current.get(permission.requestId)?.(false);
+        byokPermissionResolversRef.current.get(permission.requestId)?.({ approved: false, remember: false });
         byokPermissionResolversRef.current.delete(permission.requestId);
       }
     }
@@ -758,6 +764,11 @@ details: ${errorDetails || mainError}
                   event.kind,
                   event.status,
                   event.locations,
+                  {
+                    provider: event.provider,
+                    permissionStatus: event.permissionStatus,
+                    preview: event.preview,
+                  },
                 ),
               ],
             }),
@@ -777,6 +788,9 @@ details: ${errorDetails || mainError}
                 kind: event.kind,
                 status: event.status,
                 locations: event.locations,
+                provider: event.provider,
+                permissionStatus: event.permissionStatus,
+                preview: event.preview,
               }),
             }),
           );
@@ -925,8 +939,14 @@ details: ${errorDetails || mainError}
         },
         targetChatId,
         undefined,
-        (request: ByokToolPermissionRequest) =>
-          new Promise<boolean>((resolve) => {
+        (request: ByokToolPermissionRequest) => {
+          const workspaceKey = `${rootFolderPath ?? ""}:${request.toolName}`;
+          const rememberedDecision = byokPermissionPolicyRef.current.get(workspaceKey);
+          if (rememberedDecision !== undefined) {
+            return Promise.resolve({ approved: rememberedDecision, remember: true });
+          }
+
+          return new Promise<ByokToolPermissionDecision>((resolve) => {
             byokPermissionResolversRef.current.set(request.requestId, resolve);
             appendAcpEvent({
               id: `permission-request-${request.requestId}`,
@@ -945,12 +965,14 @@ details: ${errorDetails || mainError}
                 options: [
                   { id: "reject", name: "Deny", kind: "reject_once" },
                   { id: "allow", name: "Allow once", kind: "allow_once" },
+                  { id: "always", name: "Always", kind: "allow_always" },
                 ],
                 source: "byok",
                 toolName: request.toolName,
               },
             ]);
-          }),
+          });
+        },
       );
     } catch (error) {
       console.error("Failed to start streaming:", error);
@@ -1050,7 +1072,15 @@ details: ${errorDetails || mainError}
         state: approved ? "success" : "info",
       });
       if (currentPermission.source === "byok") {
-        byokPermissionResolversRef.current.get(currentPermission.requestId)?.(approved);
+        const decision = {
+          approved,
+          remember: option?.kind === "allow_always",
+        } satisfies ByokToolPermissionDecision;
+        byokPermissionResolversRef.current.get(currentPermission.requestId)?.(decision);
+        if (currentPermission.source === "byok" && currentPermission.toolName && decision.remember) {
+          const workspaceKey = `${rootFolderPath ?? ""}:${currentPermission.toolName}`;
+          byokPermissionPolicyRef.current.set(workspaceKey, approved);
+        }
         byokPermissionResolversRef.current.delete(currentPermission.requestId);
       } else if (currentAgentId === CODEX_INTEGRATION_ID) {
         await CodexIntegrationService.respond(currentPermission.requestId, approved);

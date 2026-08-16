@@ -11,6 +11,17 @@ import type { GenerativeUIComponent } from "@/extensions/ui/types/generative-ui"
 export type OutputStyle = "default" | "explanatory" | "learning" | "custom";
 export type ChatMode = "chat" | "plan";
 
+export type ToolCallProvider = "acp" | "byok";
+export type ToolPermissionStatus = "not_required" | "pending" | "approved" | "denied";
+
+export interface ToolCallPreview {
+  kind: "file" | "command";
+  path?: string;
+  oldText?: string;
+  newText?: string;
+  command?: string;
+}
+
 export interface ToolCall {
   id?: string;
   name: string;
@@ -20,6 +31,9 @@ export interface ToolCall {
   kind?: AcpToolKind;
   status?: AcpToolCallStatus;
   locations?: AcpToolCallLocation[];
+  provider?: ToolCallProvider;
+  permissionStatus?: ToolPermissionStatus;
+  preview?: ToolCallPreview;
   timestamp: Date;
   isComplete?: boolean;
 }

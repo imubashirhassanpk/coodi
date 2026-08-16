@@ -33,10 +33,17 @@ pub struct MessageData {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ToolCallData {
    pub message_id: String,
+   pub tool_id: Option<String>,
    pub name: String,
    pub input: Option<String>,
    pub output: Option<String>,
    pub error: Option<String>,
+   pub kind: Option<String>,
+   pub status: Option<String>,
+   pub locations: Option<String>,
+   pub provider: Option<String>,
+   pub permission_status: Option<String>,
+   pub preview: Option<String>,
    pub timestamp: i64,
    pub is_complete: bool,
 }
@@ -128,6 +135,13 @@ impl ChatHistoryRepository {
                input TEXT,
                output TEXT,
                error TEXT,
+               kind TEXT,
+               status TEXT,
+               locations TEXT,
+               provider TEXT,
+               permission_status TEXT,
+               preview TEXT,
+               tool_id TEXT,
                timestamp INTEGER NOT NULL,
                is_complete BOOLEAN DEFAULT 0,
                FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE
@@ -135,6 +149,14 @@ impl ChatHistoryRepository {
             [],
          )
          .map_err(|e| format!("Failed to create tool_calls table: {}", e))?;
+
+      let _ = conn.execute("ALTER TABLE tool_calls ADD COLUMN tool_id TEXT", []);
+      let _ = conn.execute("ALTER TABLE tool_calls ADD COLUMN kind TEXT", []);
+      let _ = conn.execute("ALTER TABLE tool_calls ADD COLUMN status TEXT", []);
+      let _ = conn.execute("ALTER TABLE tool_calls ADD COLUMN locations TEXT", []);
+      let _ = conn.execute("ALTER TABLE tool_calls ADD COLUMN provider TEXT", []);
+      let _ = conn.execute("ALTER TABLE tool_calls ADD COLUMN permission_status TEXT", []);
+      let _ = conn.execute("ALTER TABLE tool_calls ADD COLUMN preview TEXT", []);
 
       conn
          .execute(
@@ -231,14 +253,22 @@ impl ChatHistoryRepository {
 
       for tool_call in tool_calls {
          match conn.execute(
-            "INSERT INTO tool_calls (message_id, name, input, output, error, timestamp, \
-             is_complete) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            "INSERT INTO tool_calls (message_id, tool_id, name, input, output, error, kind, status, \
+             locations, provider, permission_status, preview, timestamp, is_complete) \
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
             params![
                tool_call.message_id,
+               tool_call.tool_id,
                tool_call.name,
                tool_call.input,
                tool_call.output,
                tool_call.error,
+               tool_call.kind,
+               tool_call.status,
+               tool_call.locations,
+               tool_call.provider,
+               tool_call.permission_status,
+               tool_call.preview,
                tool_call.timestamp,
                tool_call.is_complete
             ],
@@ -427,7 +457,8 @@ impl ChatHistoryRepository {
          .collect::<Vec<_>>()
          .join(",");
       let query = format!(
-         "SELECT message_id, name, input, output, error, timestamp, is_complete
+         "SELECT message_id, tool_id, name, input, output, error, kind, status, locations, \
+          provider, permission_status, preview, timestamp, is_complete
           FROM tool_calls WHERE message_id IN ({})",
          placeholders
       );
@@ -442,12 +473,19 @@ impl ChatHistoryRepository {
          .query_map(params.as_slice(), |row| {
             Ok(ToolCallData {
                message_id: row.get(0)?,
-               name: row.get(1)?,
-               input: row.get(2)?,
-               output: row.get(3)?,
-               error: row.get(4)?,
-               timestamp: row.get(5)?,
-               is_complete: row.get(6)?,
+               tool_id: row.get(1)?,
+               name: row.get(2)?,
+               input: row.get(3)?,
+               output: row.get(4)?,
+               error: row.get(5)?,
+               kind: row.get(6)?,
+               status: row.get(7)?,
+               locations: row.get(8)?,
+               provider: row.get(9)?,
+               permission_status: row.get(10)?,
+               preview: row.get(11)?,
+               timestamp: row.get(12)?,
+               is_complete: row.get(13)?,
             })
          })
          .map_err(|e| format!("Failed to query tool_calls: {}", e))?

@@ -1,9 +1,14 @@
-import type { ToolCall } from "@/features/ai/types/ai-chat.types";
 import type {
   AcpToolCallLocation,
   AcpToolCallStatus,
   AcpToolKind,
 } from "@/features/ai/types/acp.types";
+import type {
+  ToolCall,
+  ToolCallPreview,
+  ToolCallProvider,
+  ToolPermissionStatus,
+} from "@/features/ai/types/ai-chat.types";
 
 export const createToolCall = (
   toolName: string,
@@ -12,6 +17,11 @@ export const createToolCall = (
   kind?: AcpToolKind,
   status?: AcpToolCallStatus,
   locations?: AcpToolCallLocation[],
+  metadata?: {
+    provider?: ToolCallProvider;
+    permissionStatus?: ToolPermissionStatus;
+    preview?: ToolCallPreview;
+  },
 ): ToolCall => {
   const resolvedId =
     providedToolId ?? `${toolName}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
@@ -23,6 +33,9 @@ export const createToolCall = (
     kind,
     status,
     locations,
+    provider: metadata?.provider,
+    permissionStatus: metadata?.permissionStatus,
+    preview: metadata?.preview,
     timestamp: new Date(),
   };
 };
@@ -36,6 +49,9 @@ export interface ToolCallPatch {
   kind?: AcpToolKind | null;
   status?: AcpToolCallStatus | null;
   locations?: AcpToolCallLocation[] | null;
+  provider?: ToolCallProvider | null;
+  permissionStatus?: ToolPermissionStatus | null;
+  preview?: ToolCallPreview | null;
 }
 
 export const updateToolCall = (toolCalls: ToolCall[], patch: ToolCallPatch): ToolCall[] => {
@@ -55,6 +71,9 @@ export const updateToolCall = (toolCalls: ToolCall[], patch: ToolCallPatch): Too
       kind: patch.kind ?? toolCall.kind,
       status: nextStatus,
       locations: patch.locations ?? toolCall.locations,
+      provider: patch.provider ?? toolCall.provider,
+      permissionStatus: patch.permissionStatus ?? toolCall.permissionStatus,
+      preview: patch.preview ?? toolCall.preview,
       isComplete:
         nextStatus === "completed" || nextStatus === "failed" ? true : toolCall.isComplete,
     };

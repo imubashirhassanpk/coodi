@@ -22,6 +22,7 @@ export interface AIModelOption {
   name: string;
   maxTokens?: number;
   proOnly?: boolean;
+  supportsToolCalling?: boolean;
 }
 
 export function useAIModelOptions(
@@ -148,6 +149,7 @@ export function useAIModelOptions(
         name: model.name,
         proOnly: existingModel?.proOnly,
         maxTokens: model.maxTokens ?? existingModel?.maxTokens ?? 4096,
+        supportsToolCalling: model.supportsToolCalling ?? existingModel?.supportsToolCalling,
       });
     }
     for (const model of fallbackModels) {
@@ -182,6 +184,9 @@ export function useAIModelOptions(
     return "Select model";
   }, [availableModels, isCustomProvider, isLoadingModels, modelId, providerId]);
 
+    const selectedModelSupportsToolCalling =
+    availableModels.find((model) => model.id === modelId)?.supportsToolCalling;
+
   return {
     availableModels,
     currentModelName,
@@ -189,5 +194,7 @@ export function useAIModelOptions(
     isCustomProvider,
     isLoadingModels,
     modelFetchError,
+    selectedModelSupportsToolCalling,
   };
+
 }

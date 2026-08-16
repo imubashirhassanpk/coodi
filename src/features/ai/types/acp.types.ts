@@ -198,6 +198,15 @@ export type AcpEvent =
       kind: AcpToolKind;
       status: AcpToolCallStatus;
       locations: AcpToolCallLocation[];
+      provider?: "acp" | "byok";
+      permissionStatus?: "not_required" | "pending" | "approved" | "denied";
+      preview?: {
+        kind: "file" | "command";
+        path?: string;
+        oldText?: string;
+        newText?: string;
+        command?: string;
+      };
     }
   | {
       type: "tool_update";
@@ -210,6 +219,15 @@ export type AcpEvent =
       status?: AcpToolCallStatus | null;
       locations?: AcpToolCallLocation[] | null;
       error?: string | null;
+      provider?: "acp" | "byok";
+      permissionStatus?: "not_required" | "pending" | "approved" | "denied";
+      preview?: {
+        kind: "file" | "command";
+        path?: string;
+        oldText?: string;
+        newText?: string;
+        command?: string;
+      } | null;
     }
   | {
       type: "tool_complete";

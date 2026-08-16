@@ -31,6 +31,13 @@ interface ToolCallDisplayProps {
   kind?: AcpToolKind;
   status?: AcpToolCallStatus;
   locations?: AcpToolCallLocation[];
+  preview?: {
+    kind: "file" | "command";
+    path?: string;
+    oldText?: string;
+    newText?: string;
+    command?: string;
+  };
 }
 
 function getStatus(
@@ -263,6 +270,7 @@ export function ToolCallGroupDisplay({
             kind={toolCall.kind}
             status={toolCall.status}
             locations={toolCall.locations}
+            preview={toolCall.preview}
             isStreaming={!toolCall.isComplete && isStreaming}
           />
         ))}
@@ -280,20 +288,31 @@ function ToolCallDisplay({
   kind,
   status: protocolStatus,
   locations,
+  preview,
 }: ToolCallDisplayProps) {
   const state = getStatus(isStreaming, error, protocolStatus);
-  const detail = getToolCallDetail(toolName, input, output, state, protocolStatus);
+  const detail =
+    preview?.kind === "file" && preview.path
+      ? `${getStatusLabel(state, protocolStatus)} - preview ${getBaseName(preview.path)}`
+      : preview?.kind === "command" && preview.command
+        ? `${getStatusLabel(state, protocolStatus)} - ${preview.command}`
+        : getToolCallDetail(toolName, input, output, state, protocolStatus);
   const hasDetails =
     Boolean(input) ||
     Boolean(output) ||
     Boolean(error) ||
     Boolean(kind && kind !== "other") ||
-    Boolean(locations?.length);
+    Boolean(locations?.length) ||
+    Boolean(preview);
   const diffItems = getDiffItems(output);
-  const hasDiffOutput = diffItems.length > 0;
+  const previewDiffItems =
+    preview?.kind === "file" && preview.path
+      ? [{ type: "diff", path: preview.path, oldText: preview.oldText || "", newText: preview.newText || "" }]
+      : [];
+  const hasDiffOutput = diffItems.length > 0 || previewDiffItems.length > 0;
   const terminalItems = getTerminalItems(output);
   const hasTerminalOutput = terminalItems.length > 0;
-  const toolPath = resolveToolPath(locations, input);
+  const toolPath = preview?.path || resolveToolPath(locations, input);
   const hasActions = Boolean(toolPath || hasTerminalOutput);
   const actionButtons = hasActions ? (
     <span className="flex items-center gap-1">
@@ -305,7 +324,7 @@ function ToolCallDisplay({
           tooltip="Open diff"
           onClick={(event) => {
             event.stopPropagation();
-            void openToolDiff(toolPath, output);
+            void openToolDiff(toolPath, previewDiffItems.length > 0 ? previewDiffItems : output);
           }}
         >
           <GitDiff weight="duotone" />
@@ -353,6 +372,17 @@ function ToolCallDisplay({
                 .join("\n")}\n`
             : ""}
           {input ? `input:\n${formatValue(input)}\n` : ""}
+          {preview?.kind === "file" && preview.path
+            ? `preview:\n${formatDiffText({
+                type: "diff",
+                path: preview.path,
+                oldText: preview.oldText || "",
+                newText: preview.newText || "",
+              })}\n`
+            : ""}
+          {preview?.kind === "command" && preview.command
+            ? `preview command:\n${preview.command}\n`
+            : ""}
           {output
             ? `output:\n${
                 hasDiffOutput

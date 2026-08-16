@@ -62,6 +62,7 @@ export interface ProviderModel {
   id: string;
   name: string;
   maxTokens?: number;
+  supportsToolCalling?: boolean;
 }
 
 export abstract class AIProvider {

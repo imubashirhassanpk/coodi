@@ -36,10 +36,17 @@ interface MessageData {
 
 interface ToolCallData {
   message_id: string;
+  tool_id?: string | null;
   name: string;
   input: string | null;
   output: string | null;
   error: string | null;
+  kind?: string | null;
+  status?: string | null;
+  locations?: string | null;
+  provider?: string | null;
+  permission_status?: string | null;
+  preview?: string | null;
   timestamp: number;
   is_complete: boolean;
 }
@@ -103,10 +110,17 @@ function chatToData(chat: Chat): {
       for (const tc of msg.toolCalls) {
         tool_calls.push({
           message_id: msg.id,
+          tool_id: tc.id || null,
           name: tc.name,
-          input: tc.input ? JSON.stringify(tc.input) : null,
-          output: tc.output ? JSON.stringify(tc.output) : null,
+          input: tc.input !== undefined ? JSON.stringify(tc.input) : null,
+          output: tc.output !== undefined ? JSON.stringify(tc.output) : null,
           error: tc.error || null,
+          kind: tc.kind || null,
+          status: tc.status || null,
+          locations: tc.locations ? JSON.stringify(tc.locations) : null,
+          provider: tc.provider || null,
+          permission_status: tc.permissionStatus || null,
+          preview: tc.preview ? JSON.stringify(tc.preview) : null,
           timestamp: tc.timestamp.getTime(),
           is_complete: tc.isComplete || false,
         });
@@ -129,10 +143,23 @@ function dataToChat(data: ChatWithMessages): Chat {
       toolCallsMap.set(tc.message_id, []);
     }
     toolCallsMap.get(tc.message_id)!.push({
+      id: tc.tool_id || undefined,
       name: tc.name,
       input: tc.input ? JSON.parse(tc.input) : undefined,
       output: tc.output ? JSON.parse(tc.output) : undefined,
       error: tc.error || undefined,
+      kind: (tc.kind as ToolCall["kind"]) || undefined,
+      status: (tc.status as ToolCall["status"]) || undefined,
+      locations: tc.locations ? JSON.parse(tc.locations) : undefined,
+      provider: tc.provider === "byok" || tc.provider === "acp" ? tc.provider : undefined,
+      permissionStatus:
+        tc.permission_status === "pending" ||
+        tc.permission_status === "approved" ||
+        tc.permission_status === "denied" ||
+        tc.permission_status === "not_required"
+          ? tc.permission_status
+          : undefined,
+      preview: tc.preview ? JSON.parse(tc.preview) : undefined,
       timestamp: new Date(tc.timestamp),
       isComplete: tc.is_complete,
     });

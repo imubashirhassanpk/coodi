@@ -17,6 +17,7 @@ export interface Model {
   name: string;
   maxTokens: number;
   proOnly?: boolean;
+  supportsToolCalling?: boolean;
 }
 
 // Helper to check if a provider ID is an agent
@@ -244,6 +245,7 @@ const AI_PROVIDERS: ModelProvider[] = [
         id: DEFAULT_NVIDIA_MODEL_ID,
         name: "Llama 3.1 8B Instruct",
         maxTokens: 131072,
+        supportsToolCalling: true,
       },
     ],
   },

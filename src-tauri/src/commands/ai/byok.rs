@@ -58,6 +58,91 @@ struct CommandResult {
 }
 
 #[command]
+pub async fn preview_byok_tool(request: ByokToolRequest) -> Result<Value, String> {
+   let workspace_root = resolve_workspace_root(request.workspace_root)?;
+   let arguments = request
+      .arguments
+      .as_object()
+      .ok_or_else(|| "BYOK tool arguments must be a JSON object.".to_string())?;
+
+   match request.tool_name.as_str() {
+      "create_file" => {
+         let path = required_string(arguments, "path")?;
+         let content = file_content(required_text(arguments, "content")?)?;
+         let resolved = resolve_workspace_file(&workspace_root, path, true)?;
+         if resolved.exists() {
+            return Err("The file already exists; preview refused to overwrite it.".to_string());
+         }
+         Ok(json!({
+            "kind": "file",
+            "path": relative_path(&workspace_root, &resolved),
+            "oldText": "",
+            "newText": content,
+         }))
+      }
+      "write_file" => {
+         let path = required_string(arguments, "path")?;
+         let content = file_content(required_text(arguments, "content")?)?;
+         let resolved = resolve_workspace_file(&workspace_root, path, false)?;
+         let current = fs::read_to_string(&resolved)
+            .map_err(|_| "BYOK write_file only supports UTF-8 text files.".to_string())?;
+         if let Some(expected) = optional_text(arguments, "expectedContent")
+            && current != expected
+         {
+            return Err("File changed since the model read it; preview refused stale contents.".to_string());
+         }
+         Ok(json!({
+            "kind": "file",
+            "path": relative_path(&workspace_root, &resolved),
+            "oldText": current,
+            "newText": content,
+         }))
+      }
+      "apply_patch" => {
+         let path = required_string(arguments, "path")?;
+         let old_text = required_text(arguments, "oldText")?;
+         let new_text = required_text(arguments, "newText")?;
+         let expected = arguments
+            .get("expectedOccurrences")
+            .and_then(Value::as_u64)
+            .unwrap_or(1)
+            .clamp(1, 20) as usize;
+         let resolved = resolve_workspace_file(&workspace_root, path, false)?;
+         let current = fs::read_to_string(&resolved)
+            .map_err(|_| "BYOK apply_patch only supports UTF-8 text files.".to_string())?;
+         let occurrences = current.match_indices(old_text).count();
+         if old_text.is_empty() || occurrences != expected {
+            return Err(format!("Patch preview expected {expected} occurrence(s), found {occurrences}."));
+         }
+         let updated = current.replace(old_text, new_text);
+         file_content(&updated)?;
+         Ok(json!({
+            "kind": "file",
+            "path": relative_path(&workspace_root, &resolved),
+            "oldText": current,
+            "newText": updated,
+         }))
+      }
+      "run_terminal_command" => {
+         let program = required_string(arguments, "program")?;
+         let args = arguments
+            .get("args")
+            .and_then(Value::as_array)
+            .ok_or_else(|| "run_terminal_command requires an args array.".to_string())?
+            .iter()
+            .map(|value| value.as_str().map(ToString::to_string).ok_or_else(|| "Command arguments must be strings.".to_string()))
+            .collect::<Result<Vec<_>, _>>()?;
+         validate_command(program, &args)?;
+         Ok(json!({
+            "kind": "command",
+            "command": format!("{} {}", program, args.join(" ")),
+         }))
+      }
+      _ => Ok(json!({ "kind": "none" })),
+   }
+}
+
+#[command]
 pub async fn execute_byok_tool(request: ByokToolRequest) -> Result<Value, String> {
    let workspace_root = resolve_workspace_root(request.workspace_root)?;
    let arguments = request

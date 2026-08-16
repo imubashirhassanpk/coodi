@@ -31,7 +31,7 @@ describe("NVIDIA NIM provider", () => {
             { id: "meta/llama-3.1-8b-instruct", max_context_length: 131072 },
             { id: "nvidia/embed-qa-4", name: "Embedding" },
             { id: "meta/llama-3.1-8b-instruct", name: "Duplicate" },
-            { id: "deepseek-ai/deepseek-v3", name: "DeepSeek V3" },
+            { id: "deepseek-ai/deepseek-v3", name: "DeepSeek V3", supports_tools: false },
             { id: "vendor/translation-service", name: "Translation" },
           ],
         }),
@@ -40,7 +40,7 @@ describe("NVIDIA NIM provider", () => {
     );
 
     await expect(createProvider().getModels("  nvapi-secret  ")).resolves.toEqual([
-      { id: "deepseek-ai/deepseek-v3", name: "DeepSeek V3" },
+      { id: "deepseek-ai/deepseek-v3", name: "DeepSeek V3", supportsToolCalling: false },
       {
         id: "meta/llama-3.1-8b-instruct",
         name: "Llama 3.1 8B Instruct",
