@@ -1,8 +1,4 @@
-import {
-  CaretDownIcon as CaretDown,
-  MagnifyingGlassIcon as Search,
-  XIcon as X,
-} from "@/ui/icons";
+import { CaretDownIcon as CaretDown, MagnifyingGlassIcon as Search, XIcon as X } from "@/ui/icons";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSettingsStore } from "@/features/settings/stores/settings.store";
 import { resolveVisibleSettingsSection } from "@/features/settings/lib/settings-access";
@@ -283,7 +279,7 @@ const SettingsDialog = ({ isOpen, onClose }: SettingsDialogProps) => {
           <Card
             variant="elevated"
             size="flush"
-              className="@container/settings m-2 flex min-h-0 min-w-0 flex-1 flex-col bg-background"
+            className="@container/settings m-2 flex min-h-0 min-w-0 flex-1 flex-col bg-background"
           >
             <ScrollArea
               orientation="vertical"

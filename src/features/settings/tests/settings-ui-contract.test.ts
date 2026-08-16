@@ -94,8 +94,12 @@ describe("settings UI contract", () => {
     const mainLayoutSource = readFileSync(`${layoutDirectory}/main-layout.tsx`, "utf8");
 
     expect(settingsDialogSource).toContain('data-settings-page="true"');
-    expect(settingsDialogSource).toContain('className="flex size-full min-h-0 min-w-0 flex-col overflow-hidden bg-surface"');
-    expect(settingsDialogSource).toContain('className="flex h-0 min-h-0 min-w-0 flex-1 overflow-hidden"');
+    expect(settingsDialogSource).toContain(
+      'className="flex size-full min-h-0 min-w-0 flex-col overflow-hidden bg-surface"',
+    );
+    expect(settingsDialogSource).toContain(
+      'className="flex h-0 min-h-0 min-w-0 flex-1 overflow-hidden"',
+    );
     expect(settingsDialogSource).toContain(
       'className="@container/settings m-2 flex min-h-0 min-w-0 flex-1 flex-col bg-background"',
     );
@@ -148,15 +152,10 @@ describe("settings UI contract", () => {
   });
 
   it("bounds the Keybindings table scroll viewport inside its fill layout", () => {
-    const keyboardSettingsSource = readFileSync(
-      `${tabsDirectory}/keyboard-settings.tsx`,
-      "utf8",
-    );
+    const keyboardSettingsSource = readFileSync(`${tabsDirectory}/keyboard-settings.tsx`, "utf8");
 
     expect(keyboardSettingsSource).toContain('className="flex h-0 min-h-0 flex-1 flex-col"');
-    expect(keyboardSettingsSource).toContain(
-      'className="h-0 min-h-0 flex-1 overflow-hidden"',
-    );
+    expect(keyboardSettingsSource).toContain('className="h-0 min-h-0 flex-1 overflow-hidden"');
     expect(keyboardSettingsSource).toContain(
       'className="h-full min-h-0 overflow-x-auto overflow-y-auto"',
     );

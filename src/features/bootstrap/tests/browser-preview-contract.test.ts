@@ -13,7 +13,7 @@ describe("browser preview compatibility contract", () => {
     const source = readSource("src/main.tsx");
 
     expect(source).toContain("void Promise.resolve()");
-    expect(source).toContain("createRoot(document.getElementById(\"root\")!).render(<App />);");
+    expect(source).toContain('createRoot(document.getElementById("root")!).render(<App />);');
     expect(source).not.toContain(".finally(() => {");
   });
 

@@ -305,8 +305,7 @@ export function useMenuEventsWrapper() {
     },
     onChangelog: async () => {
       const { openUrl } = await import("@tauri-apps/plugin-opener");
-              await openUrl("https://www.mubashirhassan.com/coodi");
-
+      await openUrl("https://www.mubashirhassan.com/coodi");
     },
     onWhatsNew: () => {
       void openWhatsNew();
