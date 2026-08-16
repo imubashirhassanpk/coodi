@@ -15,11 +15,12 @@ export type ToolCallProvider = "acp" | "byok";
 export type ToolPermissionStatus = "not_required" | "pending" | "approved" | "denied";
 
 export interface ToolCallPreview {
-  kind: "file" | "command";
+  kind: "file" | "files" | "command";
   path?: string;
   oldText?: string;
   newText?: string;
   command?: string;
+  files?: Array<{ path: string; oldText: string; newText: string }>;
 }
 
 export interface ToolCall {

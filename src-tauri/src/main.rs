@@ -172,6 +172,8 @@ fn main() {
          // AI Provider token commands
          preview_byok_tool,
          execute_byok_tool,
+         restore_byok_checkpoint,
+         validate_byok_workspace,
          store_ai_provider_token,
          get_ai_provider_token,
          remove_ai_provider_token,

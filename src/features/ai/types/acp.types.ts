@@ -201,11 +201,12 @@ export type AcpEvent =
       provider?: "acp" | "byok";
       permissionStatus?: "not_required" | "pending" | "approved" | "denied";
       preview?: {
-        kind: "file" | "command";
+        kind: "file" | "files" | "command";
         path?: string;
         oldText?: string;
         newText?: string;
         command?: string;
+        files?: Array<{ path: string; oldText: string; newText: string }>;
       };
     }
   | {
@@ -222,11 +223,12 @@ export type AcpEvent =
       provider?: "acp" | "byok";
       permissionStatus?: "not_required" | "pending" | "approved" | "denied";
       preview?: {
-        kind: "file" | "command";
+        kind: "file" | "files" | "command";
         path?: string;
         oldText?: string;
         newText?: string;
         command?: string;
+        files?: Array<{ path: string; oldText: string; newText: string }>;
       } | null;
     }
   | {

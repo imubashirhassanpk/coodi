@@ -462,7 +462,7 @@ export const getChatCompletionStream = async (
         const locations = typeof input.path === "string" ? [{ path: input.path }] : [];
                 const validatedToolName = isByokToolName(toolName) ? toolName : null;
         let preview: Awaited<ReturnType<typeof previewByokTool>>["preview"];
-        if (!toolError && validatedToolName && ["create_file", "write_file", "apply_patch", "run_terminal_command"].includes(validatedToolName)) {
+        if (!toolError && validatedToolName && ["create_file", "write_file", "apply_patch", "apply_multi_file_patch", "run_terminal_command"].includes(validatedToolName)) {
           const previewResult = await previewByokTool(toolCall, context);
           preview = previewResult.preview;
           toolError = previewResult.error;
@@ -476,6 +476,7 @@ export const getChatCompletionStream = async (
                 oldText: preview.oldText,
                 newText: preview.newText,
                 command: preview.command,
+                files: preview.files,
               }
             : undefined;
         onToolUse?.({

@@ -5,7 +5,8 @@ use std::{
    path::{Component, Path, PathBuf},
    time::Duration,
 };
-use tauri::command;
+use tauri::{command, Manager};
+use uuid::Uuid;
 use tokio::{process::Command, time::timeout};
 use walkdir::WalkDir;
 
@@ -23,6 +24,30 @@ pub struct ByokToolRequest {
    pub arguments: Value,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RestoreByokCheckpointRequest {
+   pub workspace_root: String,
+   pub checkpoint_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ByokValidationRequest {
+   pub workspace_root: String,
+   pub mode: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ByokCheckpoint {
+   id: String,
+   workspace_root: String,
+   path: String,
+   existed: bool,
+   content: Option<String>,
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct FileResult {
@@ -37,6 +62,7 @@ struct FileWriteResult {
    path: String,
    bytes_written: usize,
    created: bool,
+   checkpoint_id: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -45,6 +71,7 @@ struct PatchResult {
    path: String,
    replacements: usize,
    bytes_written: usize,
+   checkpoint_id: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -55,6 +82,105 @@ struct CommandResult {
    exit_code: Option<i32>,
    stdout: String,
    stderr: String,
+}
+
+fn checkpoint_dir(app: &crate::app_runtime::AppHandle) -> Result<PathBuf, String> {
+   app.path()
+      .app_data_dir()
+      .map(|path| path.join("byok-checkpoints"))
+      .map_err(|error| format!("Failed to resolve BYOK checkpoint directory: {error}"))
+}
+
+fn create_checkpoint(
+   app: &crate::app_runtime::AppHandle,
+   root: &Path,
+   path: &Path,
+) -> Result<String, String> {
+   let id = Uuid::new_v4().to_string();
+   let existed = path.exists();
+   let content = if existed {
+      let bytes = fs::read(path).map_err(|error| format!("Failed to snapshot file: {error}"))?;
+      if bytes.len() > MAX_FILE_BYTES {
+         return Err("Checkpoint refused a file larger than the BYOK file limit.".to_string());
+      }
+      Some(String::from_utf8(bytes).map_err(|_| "Checkpoint only supports UTF-8 text files.".to_string())?)
+   } else {
+      None
+   };
+   let checkpoint = ByokCheckpoint {
+      id: id.clone(),
+      workspace_root: root.to_string_lossy().to_string(),
+      path: relative_path(root, path),
+      existed,
+      content,
+   };
+   let directory = checkpoint_dir(app)?;
+   fs::create_dir_all(&directory).map_err(|error| format!("Failed to create checkpoint directory: {error}"))?;
+   let file = directory.join(format!("{id}.json"));
+   fs::write(
+      file,
+      serde_json::to_vec(&checkpoint).map_err(|error| format!("Failed to serialize checkpoint: {error}"))?,
+   )
+   .map_err(|error| format!("Failed to save checkpoint: {error}"))?;
+   Ok(id)
+}
+
+#[command]
+pub async fn validate_byok_workspace(request: ByokValidationRequest) -> Result<Value, String> {
+   let workspace_root = resolve_workspace_root(Some(request.workspace_root))?;
+   let args = match request.mode.as_str() {
+      "typecheck" => vec!["exec", "tsc", "--noEmit", "--pretty", "false"],
+      "tests" => vec!["exec", "vp", "test", "run", "src/features/ai/tests"],
+      _ => return Err("Validation mode must be 'typecheck' or 'tests'.".to_string()),
+   };
+   let child = Command::new("pnpm")
+      .args(&args)
+      .current_dir(&workspace_root)
+      .env_remove("OPENAI_API_KEY")
+      .env_remove("NVIDIA_API_KEY")
+      .env_remove("NVAPI_KEY")
+      .kill_on_drop(true)
+      .output();
+   let output = timeout(Duration::from_secs(120), child)
+      .await
+      .map_err(|_| "Workspace validation timed out after 120 seconds.".to_string())?
+      .map_err(|error| format!("Failed to start workspace validation: {error}"))?;
+   Ok(json!({
+      "mode": request.mode,
+      "success": output.status.success(),
+      "exitCode": output.status.code(),
+      "stdout": truncate_output(&String::from_utf8_lossy(&output.stdout)),
+      "stderr": truncate_output(&String::from_utf8_lossy(&output.stderr)),
+   }))
+}
+
+#[command]
+pub async fn restore_byok_checkpoint(
+   app: crate::app_runtime::AppHandle,
+   request: RestoreByokCheckpointRequest,
+) -> Result<Value, String> {
+   let checkpoint_id = Uuid::parse_str(&request.checkpoint_id)
+      .map_err(|_| "Invalid BYOK checkpoint ID.".to_string())?
+      .to_string();
+   let root = resolve_workspace_root(Some(request.workspace_root))?;
+   let file = checkpoint_dir(&app)?.join(format!("{checkpoint_id}.json"));
+   let checkpoint: ByokCheckpoint = serde_json::from_slice(
+      &fs::read(&file).map_err(|_| "BYOK checkpoint was not found.".to_string())?,
+   )
+   .map_err(|_| "BYOK checkpoint is invalid.".to_string())?;
+   if checkpoint.id != checkpoint_id || checkpoint.workspace_root != root.to_string_lossy() {
+      return Err("BYOK checkpoint does not belong to this workspace.".to_string());
+   }
+   let target = resolve_workspace_file(&root, &checkpoint.path, true)?;
+   if checkpoint.existed {
+      let content = checkpoint.content.ok_or_else(|| "Checkpoint content is missing.".to_string())?;
+      file_content(&content)?;
+      fs::write(&target, content).map_err(|error| format!("Failed to restore checkpoint: {error}"))?;
+   } else if target.exists() {
+      fs::remove_file(&target).map_err(|error| format!("Failed to undo created file: {error}"))?;
+   }
+   let _ = fs::remove_file(file);
+   Ok(json!({ "restored": checkpoint.path }))
 }
 
 #[command]
@@ -97,6 +223,36 @@ pub async fn preview_byok_tool(request: ByokToolRequest) -> Result<Value, String
             "oldText": current,
             "newText": content,
          }))
+      }
+      "apply_multi_file_patch" => {
+         let patches = arguments
+            .get("patches")
+            .and_then(Value::as_array)
+            .ok_or_else(|| "apply_multi_file_patch requires a patches array.".to_string())?;
+         if patches.is_empty() || patches.len() > 20 {
+            return Err("Multi-file patch must contain between 1 and 20 files.".to_string());
+         }
+         let mut files = Vec::with_capacity(patches.len());
+         for patch in patches {
+            let patch = patch.as_object().ok_or_else(|| "Each multi-file patch must be an object.".to_string())?;
+            let path_value = required_string(patch, "path")?;
+            let old_text = required_text(patch, "oldText")?;
+            let new_text = required_text(patch, "newText")?;
+            let expected = patch.get("expectedOccurrences").and_then(Value::as_u64).unwrap_or(1).clamp(1, 20) as usize;
+            if old_text.is_empty() {
+               return Err("Multi-file patches require non-empty oldText.".to_string());
+            }
+            let resolved = resolve_workspace_file(&workspace_root, path_value, false)?;
+            let current = fs::read_to_string(&resolved).map_err(|_| "Multi-file patches only support UTF-8 text files.".to_string())?;
+            let occurrences = current.match_indices(old_text).count();
+            if occurrences != expected {
+               return Err(format!("Patch preview for {path_value} expected {expected} occurrence(s), found {occurrences}."));
+            }
+            let updated = current.replace(old_text, new_text);
+            file_content(&updated)?;
+            files.push(json!({ "path": relative_path(&workspace_root, &resolved), "oldText": current, "newText": updated }));
+         }
+         Ok(json!({ "kind": "files", "files": files }))
       }
       "apply_patch" => {
          let path = required_string(arguments, "path")?;
@@ -143,7 +299,10 @@ pub async fn preview_byok_tool(request: ByokToolRequest) -> Result<Value, String
 }
 
 #[command]
-pub async fn execute_byok_tool(request: ByokToolRequest) -> Result<Value, String> {
+pub async fn execute_byok_tool(
+   app: crate::app_runtime::AppHandle,
+   request: ByokToolRequest,
+) -> Result<Value, String> {
    let workspace_root = resolve_workspace_root(request.workspace_root)?;
    let arguments = request
       .arguments
@@ -153,9 +312,10 @@ pub async fn execute_byok_tool(request: ByokToolRequest) -> Result<Value, String
    match request.tool_name.as_str() {
       "read_file" => read_file(&workspace_root, arguments),
       "list_files" => list_files(&workspace_root, arguments),
-      "create_file" => create_file(&workspace_root, arguments),
-      "write_file" => write_file(&workspace_root, arguments),
-      "apply_patch" => apply_patch(&workspace_root, arguments),
+      "create_file" => create_file(&app, &workspace_root, arguments),
+      "write_file" => write_file(&app, &workspace_root, arguments),
+      "apply_patch" => apply_patch(&app, &workspace_root, arguments),
+      "apply_multi_file_patch" => apply_multi_file_patch(&app, &workspace_root, arguments),
       "run_terminal_command" => run_terminal_command(&workspace_root, arguments).await,
       other => Err(format!("Unsupported BYOK tool: {other}")),
    }
@@ -319,13 +479,18 @@ fn list_files(root: &Path, arguments: &serde_json::Map<String, Value>) -> Result
    Ok(json!({ "path": relative_path(root, &path), "entries": entries, "truncated": entries.len() >= MAX_LIST_ENTRIES }))
 }
 
-fn create_file(root: &Path, arguments: &serde_json::Map<String, Value>) -> Result<Value, String> {
+fn create_file(
+   app: &crate::app_runtime::AppHandle,
+   root: &Path,
+   arguments: &serde_json::Map<String, Value>,
+) -> Result<Value, String> {
    let requested = required_string(arguments, "path")?;
    let content = file_content(required_text(arguments, "content")?)?;
    let path = resolve_workspace_file(root, requested, true)?;
    if path.exists() {
       return Err("create_file refuses to overwrite an existing file; use write_file or apply_patch.".to_string());
    }
+   let checkpoint_id = create_checkpoint(app, root, &path)?;
    if let Some(parent) = path.parent() {
       fs::create_dir_all(parent).map_err(|error| format!("Failed to create parent directory: {error}"))?;
    }
@@ -334,11 +499,16 @@ fn create_file(root: &Path, arguments: &serde_json::Map<String, Value>) -> Resul
       path: relative_path(root, &path),
       bytes_written: content.as_bytes().len(),
       created: true,
+      checkpoint_id,
    })
    .map_err(|error| error.to_string())
 }
 
-fn write_file(root: &Path, arguments: &serde_json::Map<String, Value>) -> Result<Value, String> {
+fn write_file(
+   app: &crate::app_runtime::AppHandle,
+   root: &Path,
+   arguments: &serde_json::Map<String, Value>,
+) -> Result<Value, String> {
    let requested = required_string(arguments, "path")?;
    let content = file_content(required_text(arguments, "content")?)?;
    let path = resolve_workspace_file(root, requested, false)?;
@@ -348,16 +518,22 @@ fn write_file(root: &Path, arguments: &serde_json::Map<String, Value>) -> Result
    {
       return Err("File changed since the model read it; refusing to overwrite stale contents.".to_string());
    }
+   let checkpoint_id = create_checkpoint(app, root, &path)?;
    fs::write(&path, content).map_err(|error| format!("Failed to update workspace file: {error}"))?;
    serde_json::to_value(FileWriteResult {
       path: relative_path(root, &path),
       bytes_written: content.as_bytes().len(),
       created: false,
+      checkpoint_id,
    })
    .map_err(|error| error.to_string())
 }
 
-fn apply_patch(root: &Path, arguments: &serde_json::Map<String, Value>) -> Result<Value, String> {
+fn apply_patch(
+   app: &crate::app_runtime::AppHandle,
+   root: &Path,
+   arguments: &serde_json::Map<String, Value>,
+) -> Result<Value, String> {
    let requested = required_string(arguments, "path")?;
    let old_text = required_text(arguments, "oldText")?;
    let new_text = required_text(arguments, "newText")?;
@@ -377,13 +553,57 @@ fn apply_patch(root: &Path, arguments: &serde_json::Map<String, Value>) -> Resul
    }
    let updated = current.replace(old_text, new_text);
    file_content(&updated)?;
+   let checkpoint_id = create_checkpoint(app, root, &path)?;
    fs::write(&path, &updated).map_err(|error| format!("Failed to apply workspace patch: {error}"))?;
    serde_json::to_value(PatchResult {
       path: relative_path(root, &path),
       replacements: occurrences,
       bytes_written: updated.as_bytes().len(),
+      checkpoint_id,
    })
    .map_err(|error| error.to_string())
+}
+
+fn apply_multi_file_patch(
+   app: &crate::app_runtime::AppHandle,
+   root: &Path,
+   arguments: &serde_json::Map<String, Value>,
+) -> Result<Value, String> {
+   let patches = arguments
+      .get("patches")
+      .and_then(Value::as_array)
+      .ok_or_else(|| "apply_multi_file_patch requires a patches array.".to_string())?;
+   if patches.is_empty() || patches.len() > 20 {
+      return Err("Multi-file patch must contain between 1 and 20 files.".to_string());
+   }
+
+   // Validate every patch before mutating any file.
+   for patch in patches {
+      let patch = patch.as_object().ok_or_else(|| "Each multi-file patch must be an object.".to_string())?;
+      let path = required_string(patch, "path")?;
+      let old_text = required_text(patch, "oldText")?;
+      let expected = patch.get("expectedOccurrences").and_then(Value::as_u64).unwrap_or(1).clamp(1, 20) as usize;
+      if old_text.is_empty() {
+         return Err("Multi-file patches require non-empty oldText.".to_string());
+      }
+      let resolved = resolve_workspace_file(root, path, false)?;
+      let current = fs::read_to_string(&resolved).map_err(|_| "Multi-file patches only support UTF-8 text files.".to_string())?;
+      if current.match_indices(old_text).count() != expected {
+         return Err(format!("Patch for {path} no longer matches the expected occurrence count."));
+      }
+   }
+
+   let mut results = Vec::with_capacity(patches.len());
+   let mut checkpoint_ids = Vec::with_capacity(patches.len());
+   for patch in patches {
+      let patch = patch.as_object().ok_or_else(|| "Each multi-file patch must be an object.".to_string())?;
+      let result = apply_patch(app, root, patch)?;
+      if let Some(checkpoint_id) = result.get("checkpointId").and_then(Value::as_str) {
+         checkpoint_ids.push(checkpoint_id.to_string());
+      }
+      results.push(result);
+   }
+   Ok(json!({ "files": results, "checkpointIds": checkpoint_ids }))
 }
 
 async fn run_terminal_command(root: &Path, arguments: &serde_json::Map<String, Value>) -> Result<Value, String> {
@@ -480,7 +700,7 @@ fn validate_command(program: &str, args: &[String]) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
-   use super::validate_command;
+   use super::*;
 
    #[test]
    fn accepts_read_only_git_command() {
@@ -488,9 +708,21 @@ mod tests {
    }
 
    #[test]
-   fn rejects_shell_injection_and_destructive_commands() {
+   fn rejects_shell_injection_destructive_commands_and_traversal() {
       assert!(validate_command("git", &["status; rm -rf .".into()]).is_err());
       assert!(validate_command("rm", &["-rf".into(), ".".into()]).is_err());
       assert!(validate_command("pnpm", &["exec".into(), "../evil".into()]).is_err());
+      assert!(validate_command("sh", &["-c".into(), "rm -rf .".into()]).is_err());
+      assert!(validate_command("git", &["status".into(), "&&".into(), "cat".into()]).is_err());
+      assert!(validate_command("pnpm", &["exec".into(), "vp".into(), "test".into(), "run".into(), "/tmp/outside".into()]).is_err());
+   }
+
+   #[test]
+   fn rejects_workspace_traversal_and_absolute_file_paths() {
+      let root = std::env::temp_dir().join(format!("coodi-byok-test-{}", Uuid::new_v4()));
+      fs::create_dir_all(&root).expect("create test root");
+      assert!(resolve_workspace_file(&root, "../outside.txt", true).is_err());
+      assert!(resolve_workspace_file(&root, "/tmp/outside.txt", true).is_err());
+      let _ = fs::remove_dir_all(root);
    }
 }

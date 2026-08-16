@@ -53,6 +53,11 @@ import type {
   ByokToolPermissionDecision,
   ByokToolPermissionRequest,
 } from "@/features/ai/lib/byok-tools";
+import {
+  getByokPermissionKey,
+  loadByokPermissionPolicies,
+  saveByokPermissionPolicy,
+} from "@/features/ai/lib/byok-permission-policy";
 import { AgentShortcuts } from "./agent-shortcuts";
 import { ChatHeader } from "./chat-header";
 import { ChatMessages } from "./chat-messages";
@@ -107,6 +112,14 @@ const AIChat = memo(function AIChat({
     [chatState.chats, effectiveChatId],
   );
   const currentAgentId = currentChat?.agentId ?? useAIChatStore.getState().selectedAgentId;
+
+  useEffect(() => {
+    byokPermissionPolicyRef.current.clear();
+    if (!rootFolderPath || typeof window === "undefined") return;
+    for (const [key, value] of loadByokPermissionPolicies(window.localStorage, rootFolderPath)) {
+      byokPermissionPolicyRef.current.set(key, value);
+    }
+  }, [rootFolderPath]);
   const messageSearchMatches = useMemo(
     () => getMessageSearchMatches(currentChat?.messages ?? [], messageSearchQuery),
     [currentChat?.messages, messageSearchQuery],
@@ -1078,8 +1091,14 @@ details: ${errorDetails || mainError}
         } satisfies ByokToolPermissionDecision;
         byokPermissionResolversRef.current.get(currentPermission.requestId)?.(decision);
         if (currentPermission.source === "byok" && currentPermission.toolName && decision.remember) {
-          const workspaceKey = `${rootFolderPath ?? ""}:${currentPermission.toolName}`;
+          const workspaceKey = getByokPermissionKey(rootFolderPath ?? "", currentPermission.toolName);
           byokPermissionPolicyRef.current.set(workspaceKey, approved);
+          saveByokPermissionPolicy(
+            window.localStorage,
+            rootFolderPath ?? "",
+            currentPermission.toolName,
+            approved,
+          );
         }
         byokPermissionResolversRef.current.delete(currentPermission.requestId);
       } else if (currentAgentId === CODEX_INTEGRATION_ID) {

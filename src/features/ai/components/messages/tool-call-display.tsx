@@ -1,9 +1,17 @@
+import { useState } from "react";
 import {
+  ArrowCounterClockwiseIcon as ArrowCounterClockwise,
+  CheckCircleIcon as CheckCircle,
   FileTextIcon as FileText,
+  PlayIcon as Play,
   GitDiffIcon as GitDiff,
   TerminalWindowIcon as TerminalSquare,
 } from "@/ui/icons";
 import { getAcpDiffOutputs, openAcpDiffOutput } from "@/features/ai/lib/acp-diff-output";
+import {
+  restoreByokCheckpoint,
+  validateByokWorkspace,
+} from "@/features/ai/lib/byok-tools";
 import {
   getAcpTerminalOutputs,
   openAcpTerminalOutput,
@@ -32,11 +40,12 @@ interface ToolCallDisplayProps {
   status?: AcpToolCallStatus;
   locations?: AcpToolCallLocation[];
   preview?: {
-    kind: "file" | "command";
+    kind: "file" | "files" | "command";
     path?: string;
     oldText?: string;
     newText?: string;
     command?: string;
+    files?: Array<{ path: string; oldText: string; newText: string }>;
   };
 }
 
@@ -290,6 +299,7 @@ function ToolCallDisplay({
   locations,
   preview,
 }: ToolCallDisplayProps) {
+  const [validationResult, setValidationResult] = useState<string | null>(null);
   const state = getStatus(isStreaming, error, protocolStatus);
   const detail =
     preview?.kind === "file" && preview.path
@@ -308,12 +318,20 @@ function ToolCallDisplay({
   const previewDiffItems =
     preview?.kind === "file" && preview.path
       ? [{ type: "diff", path: preview.path, oldText: preview.oldText || "", newText: preview.newText || "" }]
-      : [];
+      : preview?.kind === "files"
+        ? (preview.files || []).map((file) => ({ type: "diff", ...file }))
+        : [];
   const hasDiffOutput = diffItems.length > 0 || previewDiffItems.length > 0;
   const terminalItems = getTerminalItems(output);
   const hasTerminalOutput = terminalItems.length > 0;
-  const toolPath = preview?.path || resolveToolPath(locations, input);
-  const hasActions = Boolean(toolPath || hasTerminalOutput);
+  const toolPath = preview?.path || preview?.files?.[0]?.path || resolveToolPath(locations, input);
+  const checkpointIds =
+    output && typeof output === "object" && !Array.isArray(output) && "checkpointIds" in output && Array.isArray(output.checkpointIds)
+      ? output.checkpointIds.filter((id): id is string => typeof id === "string")
+      : output && typeof output === "object" && !Array.isArray(output) && "checkpointId" in output && typeof output.checkpointId === "string"
+        ? [output.checkpointId]
+        : [];
+  const hasActions = Boolean(toolPath || hasTerminalOutput || checkpointIds.length > 0);
   const actionButtons = hasActions ? (
     <span className="flex items-center gap-1">
       {toolPath && (kind === "edit" || kind === "delete" || kind === "move" || hasDiffOutput) ? (
@@ -343,6 +361,57 @@ function ToolCallDisplay({
         >
           <FileText weight="duotone" />
         </Button>
+      ) : null}
+      {checkpointIds.length > 0 ? (
+        <>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-xs"
+            tooltip="Run TypeScript check"
+            onClick={(event) => {
+              event.stopPropagation();
+              const rootFolderPath = useProjectStore.getState().rootFolderPath;
+              void validateByokWorkspace("typecheck", { projectRoot: rootFolderPath || undefined }).then((result) => {
+                setValidationResult(
+                  "error" in result ? result.error : result.success ? "Typecheck passed" : "Typecheck failed",
+                );
+              });
+            }}
+          >
+            <CheckCircle weight="duotone" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-xs"
+            tooltip="Run AI tests"
+            onClick={(event) => {
+              event.stopPropagation();
+              const rootFolderPath = useProjectStore.getState().rootFolderPath;
+              void validateByokWorkspace("tests", { projectRoot: rootFolderPath || undefined }).then((result) => {
+                setValidationResult(
+                  "error" in result ? result.error : result.success ? "AI tests passed" : "AI tests failed",
+                );
+              });
+            }}
+          >
+            <Play weight="duotone" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-xs"
+            tooltip="Undo BYOK change"
+            onClick={(event) => {
+              event.stopPropagation();
+              const rootFolderPath = useProjectStore.getState().rootFolderPath;
+              void restoreByokCheckpoint(checkpointIds, { projectRoot: rootFolderPath || undefined });
+            }}
+          >
+            <ArrowCounterClockwise weight="duotone" />
+          </Button>
+        </>
       ) : null}
       {hasTerminalOutput ? (
         <Button
@@ -379,7 +448,9 @@ function ToolCallDisplay({
                 oldText: preview.oldText || "",
                 newText: preview.newText || "",
               })}\n`
-            : ""}
+            : preview?.kind === "files"
+              ? `preview:\n${(preview.files || []).map((file) => formatDiffText({ type: "diff", ...file })).join("\\n\\n")}\n`
+              : ""}
           {preview?.kind === "command" && preview.command
             ? `preview command:\n${preview.command}\n`
             : ""}
@@ -390,6 +461,7 @@ function ToolCallDisplay({
                   : getOutputText(output)
               }\n`
             : ""}
+          {validationResult ? `validation:\n${validationResult}\n` : ""}
           {error ? `error:\n${error}` : ""}
         </>
       ) : null}

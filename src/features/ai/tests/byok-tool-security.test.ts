@@ -14,6 +14,7 @@ describe("BYOK tool security contract", () => {
       "create_file",
       "write_file",
       "apply_patch",
+      "apply_multi_file_patch",
       "run_terminal_command",
     ]);
     expect(BYOK_TOOL_DEFINITIONS.every((tool) => tool.function.parameters.additionalProperties === false)).toBe(true);

@@ -14,6 +14,7 @@ export type ByokToolName =
   | "create_file"
   | "write_file"
   | "apply_patch"
+  | "apply_multi_file_patch"
   | "run_terminal_command";
 
 export interface ByokToolPermissionRequest {
@@ -31,11 +32,12 @@ export interface ByokToolPermissionDecision {
 }
 
 export interface ByokToolPreview {
-  kind: "file" | "command" | "none";
+  kind: "file" | "files" | "command" | "none";
   path?: string;
   oldText?: string;
   newText?: string;
   command?: string;
+  files?: Array<{ path: string; oldText: string; newText: string }>;
 }
 
 export interface ByokToolResult {
@@ -138,6 +140,36 @@ export const BYOK_TOOL_DEFINITIONS: ProviderToolDefinition[] = [
   {
     type: "function",
     function: {
+      name: "apply_multi_file_patch",
+      description: "Apply exact old-text to new-text replacements across multiple UTF-8 workspace files as one reviewed change set.",
+      parameters: {
+        type: "object",
+        properties: {
+          patches: {
+            type: "array",
+            minItems: 1,
+            maxItems: 20,
+            items: {
+              type: "object",
+              properties: {
+                path: { type: "string" },
+                oldText: { type: "string" },
+                newText: { type: "string" },
+                expectedOccurrences: { type: "number" },
+              },
+              required: ["path", "oldText", "newText"],
+              additionalProperties: false,
+            },
+          },
+        },
+        required: ["patches"],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "run_terminal_command",
       description:
         "Run one explicitly allowlisted non-shell development command in the workspace. Never use shell operators, pipes, redirects, or command substitution.",
@@ -161,6 +193,7 @@ const TOOL_NAME_SET = new Set<ByokToolName>([
   "create_file",
   "write_file",
   "apply_patch",
+  "apply_multi_file_patch",
   "run_terminal_command",
 ]);
 
@@ -226,6 +259,53 @@ export async function previewByokTool(
       },
     })) as ByokToolPreview;
     return { preview };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+export interface ByokValidationResult {
+  mode: "typecheck" | "tests";
+  success: boolean;
+  exitCode?: number;
+  stdout?: string;
+  stderr?: string;
+}
+
+export async function validateByokWorkspace(
+  mode: ByokValidationResult["mode"],
+  context: ByokToolExecutionContext | ContextInfo,
+): Promise<ByokValidationResult | { error: string }> {
+  if (!context.projectRoot) return { error: "A bound workspace is required for validation." };
+  try {
+    return (await invoke("validate_byok_workspace", {
+      request: { workspaceRoot: context.projectRoot, mode },
+    })) as ByokValidationResult;
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+export async function restoreByokCheckpoint(
+  checkpointId: string | string[],
+  context: ByokToolExecutionContext | ContextInfo,
+): Promise<{ restored?: string; error?: string }> {
+  const checkpointIds = Array.isArray(checkpointId) ? checkpointId : [checkpointId];
+  if (checkpointIds.length === 0 || !context.projectRoot) {
+    return { error: "A bound workspace and checkpoint are required to undo this change." };
+  }
+  try {
+    const restored: string[] = [];
+    for (const id of checkpointIds) {
+      const result = (await invoke("restore_byok_checkpoint", {
+        request: {
+          workspaceRoot: context.projectRoot,
+          checkpointId: id,
+        },
+      })) as { restored?: string };
+      if (result.restored) restored.push(result.restored);
+    }
+    return { restored: restored.join(", ") };
   } catch (error) {
     return { error: error instanceof Error ? error.message : String(error) };
   }
