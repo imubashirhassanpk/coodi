@@ -5,6 +5,12 @@ import type { AcpEvent } from "@/features/ai/types/acp.types";
 import type { ContextInfo } from "@/features/ai/types/ai-context.types";
 import type { AgentType } from "@/features/ai/types/ai-chat.types";
 import type { AIMessage } from "@/features/ai/types/messages.types";
+import type {
+  ProviderAssistantToolMessage,
+  ProviderChatMessage,
+  ProviderToolCall,
+  ProviderToolResultMessage,
+} from "@/features/ai/services/providers/ai-provider-interface";
 import {
   getAvailableProviders,
   getModelById,
@@ -16,7 +22,7 @@ import {
   shouldUseTauriFetchForProvider,
 } from "@/features/ai/services/providers/ai-provider-registry";
 import { isOllamaCloudUrl } from "@/features/ai/services/providers/ollama-provider";
-import { processStreamingResponse } from "@/utils/stream-utils";
+import { processStreamingResponse, processStreamingResponseWithToolCalls } from "@/utils/stream-utils";
 import { getProviderApiToken } from "@/features/ai/services/ai-token-service";
 import { resolveChatCompletionTokenLimit } from "@/features/ai/lib/chat-completion-budget";
 import {
@@ -31,11 +37,39 @@ import { isTerminalAgent } from "../lib/terminal-agents";
 import { setCustomProviderBaseUrl } from "./providers/ai-provider-registry";
 import { CODEX_INTEGRATION_ID } from "../integrations/integration-registry";
 import { CodexIntegrationService } from "../integrations/codex/codex-integration-service";
+import {
+  BYOK_TOOL_DEFINITIONS,
+  BYOK_TOOL_MAX_ROUNDS,
+  executeByokTool,
+  getByokToolDescription,
+  isByokToolName,
+  parseByokToolArguments,
+  type ByokToolPermissionRequest,
+} from "../lib/byok-tools";
 
 // Check if an agent uses ACP (CLI-based) vs HTTP API
 export const isAcpAgent = (agentId: AgentType): boolean => {
   return agentId !== "custom" && agentId !== CODEX_INTEGRATION_ID && !isTerminalAgent(agentId);
 };
+
+function getByokToolKind(
+  toolName: string,
+): Extract<AcpEvent, { type: "tool_start" }>["kind"] {
+  if (toolName === "read_file" || toolName === "list_files") return "read";
+  if (toolName === "create_file" || toolName === "write_file" || toolName === "apply_patch") {
+    return "edit";
+  }
+  if (toolName === "run_terminal_command") return "execute";
+  return "other";
+}
+
+function serializeByokToolResult(output: unknown, error?: string): string {
+  const value = error ? { error } : output;
+  const serialized = typeof value === "string" ? value : JSON.stringify(value ?? null);
+  return serialized.length > 120_000
+    ? `${serialized.slice(0, 120_000)}\\n[tool output truncated]`
+    : serialized;
+}
 
 function redactProviderError(value: string): string {
   return value
@@ -74,8 +108,15 @@ function formatProviderHttpError(
 
 function resolveProviderModelPair(providerId: string, modelId: string) {
   const requestedProvider = getProviderById(providerId);
+  const { dynamicModels } = useAIChatStore.getState();
   const requestedStaticModel = getModelById(providerId, modelId);
-  if (requestedProvider && requestedStaticModel) {
+  const fetchedModels = dynamicModels[providerId] || [];
+  const hasFreshNvidiaCatalog = providerId === "nvidia" && fetchedModels.length > 0;
+  if (
+    requestedProvider &&
+    requestedStaticModel &&
+    (!hasFreshNvidiaCatalog || fetchedModels.some((model) => model.id === modelId))
+  ) {
     return {
       providerId,
       modelId,
@@ -84,7 +125,6 @@ function resolveProviderModelPair(providerId: string, modelId: string) {
     };
   }
 
-  const { dynamicModels } = useAIChatStore.getState();
   const requestedDynamicModel = dynamicModels[providerId]?.find((model) => model.id === modelId);
   if (requestedProvider && requestedDynamicModel) {
     return {
@@ -132,7 +172,9 @@ function resolveProviderModelPair(providerId: string, modelId: string) {
 
   for (const provider of getAvailableProviders()) {
     const staticModel = provider.models.find((model) => model.id === modelId);
-    if (staticModel) {
+    const providerFetchedModels = dynamicModels[provider.id] || [];
+    const providerHasFreshNvidiaCatalog = provider.id === "nvidia" && providerFetchedModels.length > 0;
+    if (staticModel && (!providerHasFreshNvidiaCatalog || providerFetchedModels.some((model) => model.id === modelId))) {
       return {
         providerId: provider.id,
         modelId,
@@ -186,6 +228,7 @@ export const getChatCompletionStream = async (
   onResourceChunk?: (uri: string, name: string | null) => void,
   chatId?: string,
   systemPromptOverride?: string,
+  onByokToolPermission?: (request: ByokToolPermissionRequest) => Promise<boolean>,
 ): Promise<void> => {
   try {
     if (agentId === CODEX_INTEGRATION_ID) {
@@ -291,7 +334,7 @@ export const getChatCompletionStream = async (
     }
 
     // Build messages array with conversation history
-    const messages: AIMessage[] = [
+    const messages: ProviderChatMessage[] = [
       {
         role: "system" as const,
         content: systemPrompt,
@@ -315,46 +358,157 @@ export const getChatCompletionStream = async (
       throw new Error(`Provider implementation not found: ${providerId}`);
     }
 
-    const streamRequest = {
-      modelId,
-      messages,
-      maxTokens: resolveChatCompletionTokenLimit(model.maxTokens),
-      temperature: 0.7,
-      apiKey: apiKey || undefined,
-    };
-
+    const canUseByokTools =
+      Boolean(context.projectRoot?.trim()) && (providerId === "nvidia" || providerId === "custom");
+    const tools = canUseByokTools ? BYOK_TOOL_DEFINITIONS : undefined;
     const headers = providerImpl.buildHeaders(apiKey || undefined);
-    const payload = providerImpl.buildPayload(streamRequest);
-    const url = providerImpl.buildUrl ? providerImpl.buildUrl(streamRequest) : provider.apiUrl;
 
-    console.log(`Making ${provider.name} streaming chat request with model ${model.name}...`);
+    // A model may request several tool rounds. Keep this bounded so a malformed
+    // or over-eager model cannot keep the desktop process busy indefinitely.
+    for (let round = 0; round < (tools ? BYOK_TOOL_MAX_ROUNDS : 1); round += 1) {
+      const streamRequest = {
+        modelId,
+        messages,
+        maxTokens: resolveChatCompletionTokenLimit(model.maxTokens),
+        temperature: 0.7,
+        apiKey: apiKey || undefined,
+        tools,
+        toolChoice: tools ? ("auto" as const) : undefined,
+      };
+      const payload = providerImpl.buildPayload(streamRequest);
+      const url = providerImpl.buildUrl ? providerImpl.buildUrl(streamRequest) : provider.apiUrl;
 
-    // Use Tauri's fetch for providers that don't support browser CORS
-    const needsTauriFetch = shouldUseTauriFetchForProvider(providerId);
-    const fetchFn = needsTauriFetch ? tauriFetch : fetch;
-    const response = await fetchFn(url, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(payload),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`${provider.name} API error:`, response.status, response.statusText);
-      console.error("Error details:", redactProviderError(errorText));
-      onError(
-        formatProviderHttpError(
-          providerId,
-          provider.name,
-          response.status,
-          response.statusText,
-          errorText,
-        ),
+      console.log(
+        `Making ${provider.name} streaming chat request with model ${model.name}${tools ? ` (tool round ${round + 1})` : ""}...`,
       );
-      return;
+
+      // Use Tauri's fetch for providers that don't support browser CORS.
+      const needsTauriFetch = shouldUseTauriFetchForProvider(providerId);
+      const fetchFn = needsTauriFetch ? tauriFetch : fetch;
+      const response = await fetchFn(url, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`${provider.name} API error:`, response.status, response.statusText);
+        console.error("Error details:", redactProviderError(errorText));
+        onError(
+          formatProviderHttpError(
+            providerId,
+            provider.name,
+            response.status,
+            response.statusText,
+            errorText,
+          ),
+        );
+        return;
+      }
+
+      if (!tools) {
+        await processStreamingResponse(response, onChunk, onComplete, onError);
+        return;
+      }
+
+      const toolCalls = await new Promise<ProviderToolCall[]>((resolve, reject) => {
+        let settled = false;
+        const settle = (value: ProviderToolCall[]) => {
+          if (settled) return;
+          settled = true;
+          resolve(value);
+        };
+        void processStreamingResponseWithToolCalls(
+          response,
+          onChunk,
+          (calls) => settle(calls),
+          () => settle([]),
+          (error) => {
+            if (settled) return;
+            settled = true;
+            reject(new Error(error));
+          },
+        ).catch(reject);
+      });
+
+      if (toolCalls.length === 0) {
+        onComplete();
+        return;
+      }
+
+      const assistantToolMessage: ProviderAssistantToolMessage = {
+        role: "assistant",
+        content: null,
+        tool_calls: toolCalls,
+      };
+      messages.push(assistantToolMessage);
+
+      for (const toolCall of toolCalls) {
+        const toolName = toolCall.function.name;
+        let input: Record<string, unknown> = {};
+        let toolError: string | undefined;
+        try {
+          input = parseByokToolArguments(toolCall.function.arguments);
+        } catch (error) {
+          toolError = error instanceof Error ? error.message : "Invalid tool arguments";
+        }
+
+        const toolKind = getByokToolKind(toolName);
+        const locations = typeof input.path === "string" ? [{ path: input.path }] : [];
+        onToolUse?.({
+          type: "tool_start",
+          sessionId: chatId ?? "byok",
+          toolName,
+          toolId: toolCall.id,
+          input,
+          kind: toolKind,
+          status: "in_progress",
+          locations,
+        });
+
+        const validatedToolName = isByokToolName(toolName) ? toolName : null;
+        if (!toolError && !validatedToolName) {
+          toolError = `Unsupported BYOK tool: ${toolName}`;
+        }
+
+        if (!toolError && validatedToolName) {
+          const permissionDetails = getByokToolDescription(validatedToolName, input);
+          const permissionRequest: ByokToolPermissionRequest = {
+            requestId: `byok-${chatId ?? "chat"}-${round}-${toolCall.id}`,
+            toolName: validatedToolName,
+            description: permissionDetails.description,
+            resource: permissionDetails.resource,
+            input,
+          };
+          const approved = onByokToolPermission
+            ? await onByokToolPermission(permissionRequest)
+            : false;
+          if (!approved) {
+            toolError = "User denied this BYOK tool request.";
+          } else {
+            const result = await executeByokTool(toolCall, context);
+            toolError = result.error;
+            onToolComplete?.(toolName, toolCall.id, result.output, result.error);
+            messages.push({
+              role: "tool",
+              tool_call_id: toolCall.id,
+              content: serializeByokToolResult(result.output, result.error),
+            } satisfies ProviderToolResultMessage);
+            continue;
+          }
+        }
+
+        onToolComplete?.(toolName, toolCall.id, undefined, toolError);
+        messages.push({
+          role: "tool",
+          tool_call_id: toolCall.id,
+          content: serializeByokToolResult(undefined, toolError),
+        } satisfies ProviderToolResultMessage);
+      }
     }
 
-    await processStreamingResponse(response, onChunk, onComplete, onError);
+    onError("The model exceeded the maximum number of BYOK tool rounds.");
   } catch (error: any) {
     console.error(`${providerId} streaming chat completion error:`, error);
     onError(`Failed to connect to ${providerId} API: ${error.message || error}`);

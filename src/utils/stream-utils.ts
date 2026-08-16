@@ -3,10 +3,13 @@
  * Used by AI providers that return streaming responses
  */
 
+import type { ProviderToolCall } from "@/features/ai/services/providers/ai-provider-interface";
+
 interface StreamHandlers {
   onChunk: (chunk: string) => void;
   onComplete: () => void;
   onError: (error: string) => void;
+  onToolCalls?: (toolCalls: ProviderToolCall[]) => void;
 }
 
 interface SSEData {
@@ -63,6 +66,7 @@ class SSEStreamParser {
   private hasVisibleContent = false;
   private hasReasoning = false;
   private hasToolCalls = false;
+  private readonly toolCalls = new Map<number, ProviderToolCall>();
   private finishReason: string | null = null;
   private v0Content: unknown[] = [];
   private v0PlainText = "";
@@ -227,7 +231,9 @@ class SSEStreamParser {
       const message = firstChoice.delta || firstChoice.message;
       content = extractVisibleMessageText(message) || extractTextContent(firstChoice.text);
       this.hasReasoning ||= hasResponseValue(message?.reasoning, message?.reasoning_details);
-      this.hasToolCalls ||= hasResponseValue(message?.tool_calls);
+      if (message?.tool_calls) {
+        this.accumulateToolCalls(message.tool_calls);
+      }
       this.finishReason = firstChoice.finish_reason ?? this.finishReason;
       if (this.finishReason === "error") {
         this.fail("The provider ended the stream with an unspecified generation error.");
@@ -253,6 +259,33 @@ class SSEStreamParser {
     }
   }
 
+  private accumulateToolCalls(value: unknown): void {
+    if (!Array.isArray(value)) return;
+    this.hasToolCalls = true;
+    for (const rawCall of value) {
+      if (!isRecord(rawCall)) continue;
+      const index = typeof rawCall.index === "number" ? rawCall.index : this.toolCalls.size;
+      const existing = this.toolCalls.get(index) || {
+        id: "",
+        type: "function" as const,
+        function: { name: "", arguments: "" },
+      };
+      const functionDelta = isRecord(rawCall.function) ? rawCall.function : {};
+      const id = typeof rawCall.id === "string" ? rawCall.id : existing.id;
+      const name = typeof functionDelta.name === "string" ? functionDelta.name : "";
+      const argumentsDelta =
+        typeof functionDelta.arguments === "string" ? functionDelta.arguments : "";
+      this.toolCalls.set(index, {
+        id,
+        type: "function",
+        function: {
+          name: `${existing.function.name}${name}`,
+          arguments: `${existing.function.arguments}${argumentsDelta}`,
+        },
+      });
+    }
+  }
+
   private emitContent(content: string): void {
     this.hasVisibleContent ||= Boolean(content.trim());
     this.handlers.onChunk(content);
@@ -267,9 +300,19 @@ class SSEStreamParser {
       );
       return;
     }
-    if (!this.hasVisibleContent && this.hasToolCalls) {
-      this.fail("The provider returned a tool call that Coodi did not request or cannot execute.");
-      return;
+    if (this.hasToolCalls) {
+      const toolCalls = Array.from(this.toolCalls.values()).filter(
+        (toolCall) => toolCall.id && toolCall.function.name,
+      );
+      if (this.handlers.onToolCalls && toolCalls.length > 0) {
+        this.isComplete = true;
+        this.handlers.onToolCalls(toolCalls);
+        return;
+      }
+      if (!this.hasVisibleContent) {
+        this.fail("The provider returned a tool call that Coodi did not request or cannot execute.");
+        return;
+      }
     }
     if (!this.hasVisibleContent && this.hasReasoning) {
       this.fail("The model returned reasoning data but no visible answer text.");
@@ -531,5 +574,16 @@ export async function processStreamingResponse(
   onError: (error: string) => void,
 ): Promise<void> {
   const parser = new SSEStreamParser({ onChunk, onComplete, onError });
+  await parser.processStream(response);
+}
+
+export async function processStreamingResponseWithToolCalls(
+  response: Response,
+  onChunk: (chunk: string) => void,
+  onToolCalls: (toolCalls: ProviderToolCall[]) => void,
+  onComplete: () => void,
+  onError: (error: string) => void,
+): Promise<void> {
+  const parser = new SSEStreamParser({ onChunk, onToolCalls, onComplete, onError });
   await parser.processStream(response);
 }

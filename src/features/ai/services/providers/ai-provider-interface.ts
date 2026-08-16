@@ -1,5 +1,40 @@
 import type { AIMessage } from "@/features/ai/types/messages.types";
 
+export interface ProviderToolDefinition {
+  type: "function";
+  function: {
+    name: string;
+    description: string;
+    parameters: Record<string, unknown>;
+  };
+}
+
+export interface ProviderToolCall {
+  id: string;
+  type: "function";
+  function: {
+    name: string;
+    arguments: string;
+  };
+}
+
+export interface ProviderAssistantToolMessage {
+  role: "assistant";
+  content: string | null;
+  tool_calls: ProviderToolCall[];
+}
+
+export interface ProviderToolResultMessage {
+  role: "tool";
+  tool_call_id: string;
+  content: string;
+}
+
+export type ProviderChatMessage =
+  | AIMessage
+  | ProviderAssistantToolMessage
+  | ProviderToolResultMessage;
+
 export interface ProviderConfig {
   id: string;
   name: string;
@@ -14,8 +49,10 @@ export interface ProviderHeaders {
 
 export interface StreamRequest {
   modelId: string;
-  messages: AIMessage[];
+  messages: ProviderChatMessage[];
   maxTokens: number;
+  tools?: ProviderToolDefinition[];
+  toolChoice?: "auto";
   temperature: number;
   apiKey?: string;
   responseFormat?: "text" | "json_object";

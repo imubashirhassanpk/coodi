@@ -49,9 +49,15 @@ import { cn } from "@/utils/cn";
 import { useChatActions, useChatState } from "../../hooks/use-chat-store";
 import AIChatInputBar from "../input/chat-input-bar";
 import { AcpPermissionPrompt, type AcpPermissionRequest } from "./acp-permission-prompt";
+import type { ByokToolPermissionRequest } from "@/features/ai/lib/byok-tools";
 import { AgentShortcuts } from "./agent-shortcuts";
 import { ChatHeader } from "./chat-header";
 import { ChatMessages } from "./chat-messages";
+
+type ChatPermissionRequest = AcpPermissionRequest & {
+  source?: "acp" | "byok";
+  toolName?: string;
+};
 
 const AIChat = memo(function AIChat({
   className,
@@ -77,7 +83,8 @@ const AIChat = memo(function AIChat({
   const { showToast } = useToast();
 
   const abortControllerRef = useRef<AbortController | null>(null);
-  const [permissionQueue, setPermissionQueue] = useState<AcpPermissionRequest[]>([]);
+  const [permissionQueue, setPermissionQueue] = useState<ChatPermissionRequest[]>([]);
+  const byokPermissionResolversRef = useRef(new Map<string, (approved: boolean) => void>());
   const [acpEvents, setAcpEvents] = useState<ChatAcpEvent[]>([]);
   const [isMessageSearchOpen, setIsMessageSearchOpen] = useState(false);
   const [messageSearchQuery, setMessageSearchQuery] = useState("");
@@ -342,6 +349,12 @@ const AIChat = memo(function AIChat({
   const stopStreaming = async () => {
     const pendingPermissions = permissionQueue;
     setPermissionQueue([]);
+    for (const permission of pendingPermissions) {
+      if (permission.source === "byok") {
+        byokPermissionResolversRef.current.get(permission.requestId)?.(false);
+        byokPermissionResolversRef.current.delete(permission.requestId);
+      }
+    }
 
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -911,6 +924,33 @@ details: ${errorDetails || mainError}
           );
         },
         targetChatId,
+        undefined,
+        (request: ByokToolPermissionRequest) =>
+          new Promise<boolean>((resolve) => {
+            byokPermissionResolversRef.current.set(request.requestId, resolve);
+            appendAcpEvent({
+              id: `permission-request-${request.requestId}`,
+              category: "permission",
+              label: "BYOK permission requested",
+              detail: request.description,
+              state: "info",
+            });
+            setPermissionQueue((previous) => [
+              ...previous,
+              {
+                requestId: request.requestId,
+                description: request.description,
+                permissionType: `BYOK ${request.toolName}`,
+                resource: request.resource,
+                options: [
+                  { id: "reject", name: "Deny", kind: "reject_once" },
+                  { id: "allow", name: "Allow once", kind: "allow_once" },
+                ],
+                source: "byok",
+                toolName: request.toolName,
+              },
+            ]);
+          }),
       );
     } catch (error) {
       console.error("Failed to start streaming:", error);
@@ -1009,7 +1049,10 @@ details: ${errorDetails || mainError}
         detail: option?.name || (approved ? "allow" : "deny"),
         state: approved ? "success" : "info",
       });
-      if (currentAgentId === CODEX_INTEGRATION_ID) {
+      if (currentPermission.source === "byok") {
+        byokPermissionResolversRef.current.get(currentPermission.requestId)?.(approved);
+        byokPermissionResolversRef.current.delete(currentPermission.requestId);
+      } else if (currentAgentId === CODEX_INTEGRATION_ID) {
         await CodexIntegrationService.respond(currentPermission.requestId, approved);
       } else {
         await AcpStreamHandler.respondToPermission(

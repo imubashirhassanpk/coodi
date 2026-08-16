@@ -111,9 +111,12 @@ export class NvidiaProvider extends AIProvider {
     return {
       model: request.modelId,
       messages: request.messages,
-      max_completion_tokens: request.maxTokens,
+      max_tokens: request.maxTokens,
       temperature: request.temperature,
       stream: true,
+      ...(request.tools?.length
+        ? { tools: request.tools, tool_choice: request.toolChoice ?? "auto" }
+        : {}),
       ...(request.responseFormat
         ? { response_format: { type: request.responseFormat } }
         : {}),

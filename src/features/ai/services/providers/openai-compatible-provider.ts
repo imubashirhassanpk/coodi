@@ -54,6 +54,9 @@ export class OpenAICompatibleProvider extends AIProvider {
       max_tokens: request.maxTokens,
       temperature: request.temperature,
       stream: true,
+      ...(request.tools?.length
+        ? { tools: request.tools, tool_choice: request.toolChoice ?? "auto" }
+        : {}),
       ...(request.responseFormat ? { response_format: { type: request.responseFormat } } : {}),
     };
   }

@@ -78,9 +78,14 @@ export function useAIModelOptions(
       !canFetchWithoutApiKey &&
       !isCustomProvider
     ) {
+      setDynamicModels(providerId, []);
+      setModelFetchError(`${config.name} API key is required to load models.`);
       return;
     }
 
+    if (providerId === "nvidia" || isCustomProvider) {
+      setDynamicModels(providerId, []);
+    }
     setIsLoadingModels(true);
     try {
       const models = await instance.getModels(apiKey || undefined);
@@ -110,7 +115,8 @@ export function useAIModelOptions(
   }, [fetchDynamicModels]);
 
   useEffect(() => {
-    if (!isCustomProvider || typeof window === "undefined") return;
+    const listensForTokenChange = isCustomProvider || Boolean(provider?.requiresApiKey);
+    if (!listensForTokenChange || typeof window === "undefined") return;
 
     const handleTokenChange = (event: Event) => {
       const changedProviderId = (event as CustomEvent<{ providerId?: string }>).detail?.providerId;
@@ -120,7 +126,7 @@ export function useAIModelOptions(
 
     window.addEventListener(PROVIDER_API_TOKEN_CHANGED_EVENT, handleTokenChange);
     return () => window.removeEventListener(PROVIDER_API_TOKEN_CHANGED_EVENT, handleTokenChange);
-  }, [fetchDynamicModels, isCustomProvider, providerId]);
+  }, [fetchDynamicModels, isCustomProvider, provider?.requiresApiKey, providerId]);
 
   const availableModels = useMemo(() => {
     const staticModels = provider?.models || [];
@@ -131,11 +137,11 @@ export function useAIModelOptions(
       customModelId,
       autocompleteCustomModelId,
     });
-    const mergedModels = new Map<string, AIModelOption>(
-      staticModels.map((model) => [model.id, model]),
-    );
+    const modelsToPrefer = fetchedModels.length > 0 ? fetchedModels : staticModels;
+    const fallbackModels = fetchedModels.length > 0 ? staticModels : [];
+    const mergedModels = new Map<string, AIModelOption>();
 
-    for (const model of fetchedModels) {
+    for (const model of modelsToPrefer) {
       const existingModel = mergedModels.get(model.id);
       mergedModels.set(model.id, {
         id: model.id,
@@ -143,6 +149,9 @@ export function useAIModelOptions(
         proOnly: existingModel?.proOnly,
         maxTokens: model.maxTokens ?? existingModel?.maxTokens ?? 4096,
       });
+    }
+    for (const model of fallbackModels) {
+      if (!mergedModels.has(model.id)) mergedModels.set(model.id, model);
     }
     for (const model of customModels) {
       if (!mergedModels.has(model.id)) mergedModels.set(model.id, model);
