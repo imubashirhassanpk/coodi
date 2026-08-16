@@ -14,7 +14,7 @@ export const ChatComposer = forwardRef<
   ref,
 ) {
   const rootClassName = cn(
-    "ai-chat-container relative z-20 min-w-0 max-w-full overflow-visible",
+    "ai-chat-container relative z-20 min-w-0 max-w-full shrink-0 overflow-visible",
     dragActive && "border-primary bg-primary/5 shadow-[0_0_0_1px_var(--primary)]",
     connected && "rounded-t-none",
     className,

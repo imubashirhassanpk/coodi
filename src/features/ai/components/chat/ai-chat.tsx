@@ -1224,11 +1224,13 @@ details: ${errorDetails || mainError}
           )}
 
           {currentPermission ? (
-            <AcpPermissionPrompt
-              permission={currentPermission}
-              queuedCount={permissionQueue.length - 1}
-              onRespond={handlePermission}
-            />
+            <div className="min-w-0 shrink-0">
+              <AcpPermissionPrompt
+                permission={currentPermission}
+                queuedCount={permissionQueue.length - 1}
+                onRespond={handlePermission}
+              />
+            </div>
           ) : null}
 
           {!useInitialComposer ? (
