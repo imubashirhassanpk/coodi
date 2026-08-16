@@ -97,14 +97,17 @@ export const ChatMessages = memo(function ChatMessages({
 
   if (messages.length === 0) {
     return (
-      <MessageScrollerContent className="justify-end px-4 pb-2 pt-4">
+      <MessageScrollerContent className="w-full max-w-full min-w-0 justify-end overflow-x-hidden px-4 pb-2 pt-4">
         <AgentShortcuts className="mx-auto max-w-sm" surfaceId={surfaceId} />
       </MessageScrollerContent>
     );
   }
 
   return (
-    <MessageScrollerContent aria-busy={messages.some((message) => message.isStreaming)}>
+    <MessageScrollerContent
+      aria-busy={messages.some((message) => message.isStreaming)}
+      className="w-full max-w-full min-w-0 overflow-x-hidden"
+    >
       {timelineItems.map((item) => {
         if (item.type === "acp") {
           return (

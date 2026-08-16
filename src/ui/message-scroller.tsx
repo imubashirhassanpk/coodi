@@ -23,7 +23,7 @@ function MessageScroller({
     <MessageScrollerPrimitive.Root
       data-slot="message-scroller"
       className={cn(
-        "group/message-scroller relative flex size-full min-h-0 flex-col overflow-hidden",
+        "group/message-scroller relative flex w-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden",
         className,
       )}
       {...props}
@@ -39,7 +39,7 @@ function MessageScrollerViewport({
     <MessageScrollerPrimitive.Viewport
       data-slot="message-scroller-viewport"
       className={cn(
-        "scrollbar-hidden min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain contain-content",
+        "scrollbar-hidden h-full min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain contain-content",
         className,
       )}
       {...props}

@@ -39,7 +39,7 @@ describe("AI responsive UI contract", () => {
     expect(source).toContain('className="h-0 min-h-0 min-w-0 flex-1"');
     expect(agentTabSource).toContain("size-full min-h-0 min-w-0 overflow-hidden");
     expect(scrollerSource).toContain(
-      "min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain",
+      "h-full min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain",
     );
   });
 
@@ -52,6 +52,13 @@ describe("AI responsive UI contract", () => {
     expect(readFileSync(`${aiComponentsDirectory}/chat/ai-chat.tsx`, "utf8")).toContain(
       'className="min-w-0 shrink-0"',
     );
+    const messagesSource = readFileSync(`${aiComponentsDirectory}/chat/chat-messages.tsx`, "utf8");
+    const scrollerSource = readFileSync(
+      `${aiComponentsDirectory}/../../../ui/message-scroller.tsx`,
+      "utf8",
+    );
+    expect(messagesSource).toContain("w-full max-w-full min-w-0 overflow-x-hidden");
+    expect(scrollerSource).toContain("w-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden");
   });
 
   it("keeps model selector menus bounded by available width", () => {
