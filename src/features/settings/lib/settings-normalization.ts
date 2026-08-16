@@ -1,5 +1,6 @@
 import { getProviderById } from "@/features/ai/types/providers.types";
 import { normalizeOllamaBaseUrl } from "@/features/ai/lib/ollama-endpoint";
+import { normalizeOpenAICompatibleBaseUrl } from "@/features/ai/lib/openai-compatible-endpoint";
 import { normalizeV0DesignSystems } from "@/extensions/v0/lib/v0-design-systems";
 import { isKeybindingPreset } from "@/features/keymaps/defaults/keybinding-presets";
 import {
@@ -384,7 +385,9 @@ function normalizeAISettings(settings: Settings): Settings {
       ? normalizedSettings.aiProviderId.trim()
       : "";
   const provider = requestedProviderId ? getProviderById(requestedProviderId) : undefined;
-  normalizedSettings.aiCustomBaseUrl = normalizeBaseUrl(normalizedSettings.aiCustomBaseUrl);
+  normalizedSettings.aiCustomBaseUrl = normalizeOpenAICompatibleBaseUrl(
+    normalizedSettings.aiCustomBaseUrl,
+  );
   normalizedSettings.aiCustomModelId = normalizedSettings.aiCustomModelId?.trim() || "";
   normalizedSettings.ollamaBaseUrl = normalizeOllamaBaseUrl(normalizedSettings.ollamaBaseUrl);
 
@@ -398,7 +401,11 @@ function normalizeAISettings(settings: Settings): Settings {
       normalizedSettings.aiModelId;
 
     if (provider.id === "custom") {
-      normalizedSettings.aiModelId = normalizedSettings.aiCustomModelId;
+      normalizedSettings.aiModelId =
+        normalizedSettings.aiCustomModelId ||
+        normalizedSettings.aiAutocompleteCustomModelId?.trim() ||
+        normalizedSettings.aiModelId?.trim() ||
+        "";
     } else if (
       provider.models.length > 0 &&
       !provider.models.some((model) => model.id === normalizedSettings.aiModelId)
@@ -413,8 +420,9 @@ function normalizeAISettings(settings: Settings): Settings {
     DEFAULT_AI_AUTOCOMPLETE_MODEL_ID;
   normalizedSettings.aiAutocompleteProvider =
     normalizedSettings.aiAutocompleteProvider === "custom" ? "custom" : "openrouter";
-  normalizedSettings.aiAutocompleteCustomBaseUrl =
-    normalizedSettings.aiAutocompleteCustomBaseUrl?.trim() || "";
+  normalizedSettings.aiAutocompleteCustomBaseUrl = normalizeOpenAICompatibleBaseUrl(
+    normalizedSettings.aiAutocompleteCustomBaseUrl,
+  );
   normalizedSettings.aiAutocompleteCustomModelId =
     normalizedSettings.aiAutocompleteCustomModelId?.trim() || "";
   normalizedSettings.aiSkills = normalizeAISkills(normalizedSettings.aiSkills);
@@ -664,8 +672,8 @@ export function normalizeSettingValue<K extends keyof Settings>(
     return ((value as string)?.trim() || "") as Settings[K];
   }
 
-  if (key === "aiCustomBaseUrl") {
-    return normalizeBaseUrl(value as string) as Settings[K];
+  if (key === "aiCustomBaseUrl" || key === "aiAutocompleteCustomBaseUrl") {
+    return normalizeOpenAICompatibleBaseUrl(value as string) as Settings[K];
   }
 
   if (key === "ollamaBaseUrl") {
@@ -678,10 +686,6 @@ export function normalizeSettingValue<K extends keyof Settings>(
 
   if (key === "aiAutocompleteProvider") {
     return (value === "custom" ? "custom" : "openrouter") as Settings[K];
-  }
-
-  if (key === "aiAutocompleteCustomBaseUrl") {
-    return (value as string).trim() as Settings[K];
   }
 
   if (key === "aiAutocompleteCustomModelId") {

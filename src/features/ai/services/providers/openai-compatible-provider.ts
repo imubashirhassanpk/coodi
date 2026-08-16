@@ -1,4 +1,9 @@
-import { fetch as tauriFetch } from "@tauri-apps/plugin-http";
+import { providerFetch } from "./provider-fetch";
+import {
+  getOpenAICompatibleChatCompletionsUrl,
+  getOpenAICompatibleModelsUrl,
+  normalizeOpenAICompatibleBaseUrl,
+} from "@/features/ai/lib/openai-compatible-endpoint";
 import {
   AIProvider,
   type ProviderHeaders,
@@ -6,32 +11,28 @@ import {
   type StreamRequest,
 } from "./ai-provider-interface";
 
-function trimTrailingSlashes(value: string): string {
-  return value.trim().replace(/\/+$/, "");
-}
+async function getProviderErrorMessage(response: Response): Promise<string> {
+  const body = await response.text().catch(() => "");
+  if (!body.trim()) return `${response.status} ${response.statusText}`.trim();
 
-function normalizeChatCompletionsUrl(baseUrl: string): string {
-  const trimmed = trimTrailingSlashes(baseUrl);
-  if (!trimmed) {
-    throw new Error("Custom provider base URL is required.");
+  try {
+    const parsed = JSON.parse(body) as { error?: { message?: string } | string; message?: string };
+    const error = parsed.error;
+    if (typeof error === "string") return error;
+    if (error?.message) return error.message;
+    if (parsed.message) return parsed.message;
+  } catch {
+    // Keep the plain response body when the server does not return JSON.
   }
 
-  if (trimmed.endsWith("/chat/completions")) return trimmed;
-  return `${trimmed}/chat/completions`;
-}
-
-function modelsUrlFromChatUrl(chatUrl: string): string {
-  if (chatUrl.endsWith("/chat/completions")) {
-    return chatUrl.slice(0, -"/chat/completions".length) + "/models";
-  }
-  return `${trimTrailingSlashes(chatUrl)}/models`;
+  return body.trim().slice(0, 240);
 }
 
 export class OpenAICompatibleProvider extends AIProvider {
   private baseUrlOverride = "";
 
   setBaseUrl(baseUrl: string): void {
-    this.baseUrlOverride = trimTrailingSlashes(baseUrl);
+    this.baseUrlOverride = normalizeOpenAICompatibleBaseUrl(baseUrl);
   }
 
   getBaseUrl(): string {
@@ -42,7 +43,7 @@ export class OpenAICompatibleProvider extends AIProvider {
     return {
       "Content-Type": "application/json",
       Accept: "text/event-stream, application/json",
-      ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
+      ...(apiKey?.trim() ? { Authorization: `Bearer ${apiKey.trim()}` } : {}),
     };
   }
 
@@ -58,40 +59,51 @@ export class OpenAICompatibleProvider extends AIProvider {
   }
 
   buildUrl(): string {
-    return normalizeChatCompletionsUrl(this.getBaseUrl());
+    return getOpenAICompatibleChatCompletionsUrl(this.getBaseUrl());
   }
 
   async getModels(apiKey?: string): Promise<ProviderModel[]> {
-    const response = await tauriFetch(modelsUrlFromChatUrl(this.buildUrl()), {
+    const response = await providerFetch(getOpenAICompatibleModelsUrl(this.getBaseUrl()), {
       method: "GET",
       headers: this.buildHeaders(apiKey),
     });
 
-    if (!response.ok) return [];
+    if (!response.ok) {
+      throw new Error(`Model discovery failed: ${await getProviderErrorMessage(response)}`);
+    }
 
     const data = (await response.json()) as {
       data?: Array<{ id?: string; name?: string; max_context_length?: number }>;
       models?: Array<{ id?: string; name?: string; max_context_length?: number }>;
     };
-    const models = Array.isArray(data.data) ? data.data : data.models || [];
-    const parsedModels: ProviderModel[] = [];
+    const models = Array.isArray(data.data)
+      ? data.data
+      : Array.isArray(data.models)
+        ? data.models
+        : [];
+
+    const parsedModels = new Map<string, ProviderModel>();
     for (const model of models) {
       const id = model.id?.trim() || "";
-      if (!id) continue;
-      parsedModels.push({
+      if (!id || parsedModels.has(id)) continue;
+
+      const parsedModel: ProviderModel = {
         id,
-        name: model.name || id,
-        maxTokens: model.max_context_length,
-      });
+        name: model.name?.trim() || id,
+      };
+      if (typeof model.max_context_length === "number") {
+        parsedModel.maxTokens = model.max_context_length;
+      }
+      parsedModels.set(id, parsedModel);
     }
-    return parsedModels;
+    return Array.from(parsedModels.values());
   }
 
   async validateApiKey(apiKey: string): Promise<boolean> {
     if (!apiKey.trim()) return false;
 
     try {
-      const response = await tauriFetch(modelsUrlFromChatUrl(this.buildUrl()), {
+      const response = await providerFetch(getOpenAICompatibleModelsUrl(this.getBaseUrl()), {
         method: "GET",
         headers: this.buildHeaders(apiKey),
       });

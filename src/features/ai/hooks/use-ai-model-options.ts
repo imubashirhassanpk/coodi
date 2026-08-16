@@ -92,8 +92,8 @@ export function useAIModelOptions(
             : "No models found.",
         );
       }
-    } catch {
-      setModelFetchError("Failed to fetch models");
+    } catch (error) {
+      setModelFetchError(error instanceof Error ? error.message : "Failed to fetch models");
     } finally {
       setIsLoadingModels(false);
     }

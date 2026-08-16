@@ -50,6 +50,55 @@ describe("custom OpenAI-compatible provider", () => {
     });
   });
 
+  it("normalizes endpoint suffixes and accepts alternate model payloads", async () => {
+    mockedTauriFetch.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          models: [
+            { id: "custom-a" },
+            { id: "custom-a", name: "Duplicate" },
+            { id: "custom-b", name: " Custom B " },
+          ],
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ) as never,
+    );
+
+    const provider = createProvider();
+    provider.setBaseUrl("https://llm.example.test/v1/chat/completions/");
+
+    await expect(provider.getModels("  custom-secret  ")).resolves.toEqual([
+      { id: "custom-a", name: "custom-a" },
+      { id: "custom-b", name: "Custom B" },
+    ]);
+    expect(provider.buildUrl()).toBe("https://llm.example.test/v1/chat/completions");
+    expect(mockedTauriFetch).toHaveBeenCalledWith("https://llm.example.test/v1/models", {
+      method: "GET",
+      headers: {
+        Accept: "text/event-stream, application/json",
+        Authorization: "Bearer custom-secret",
+        "Content-Type": "application/json",
+      },
+    });
+  });
+
+  it("rejects invalid endpoints and exposes provider HTTP errors", async () => {
+    const provider = createProvider();
+    provider.setBaseUrl("not-a-url");
+    expect(() => provider.buildUrl()).toThrow("must be a valid URL");
+
+    mockedTauriFetch.mockResolvedValueOnce(
+      new Response(JSON.stringify({ error: { message: "invalid API key" } }), {
+        status: 401,
+        headers: { "content-type": "application/json" },
+      }) as never,
+    );
+    provider.setBaseUrl("https://llm.example.test/v1");
+    await expect(provider.getModels("bad-key")).rejects.toThrow(
+      "Model discovery failed: invalid API key",
+    );
+  });
+
   it("builds a compatible streaming request using the selected model ID", () => {
     const provider = createProvider();
 

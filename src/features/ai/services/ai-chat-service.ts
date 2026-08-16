@@ -37,6 +37,41 @@ export const isAcpAgent = (agentId: AgentType): boolean => {
   return agentId !== "custom" && agentId !== CODEX_INTEGRATION_ID && !isTerminalAgent(agentId);
 };
 
+function redactProviderError(value: string): string {
+  return value
+    .replace(/Bearer\s+\S+/gi, "Bearer [redacted]")
+    .replace(/nvapi-[A-Za-z0-9_-]+/g, "nvapi-[redacted]")
+    .trim()
+    .slice(0, 320);
+}
+
+function formatProviderHttpError(
+  providerId: string,
+  providerName: string,
+  status: number,
+  statusText: string,
+  body: string,
+): string {
+  const safeBody = redactProviderError(body);
+  if (status === 401 || status === 403) {
+    return `${providerName} rejected the API key. Verify the key in Settings -> Agent Mode -> Manage keys.`;
+  }
+  if (status === 404 && providerId === "custom") {
+    return "Custom endpoint was not found. Use the provider base URL, for example https://host/v1, not /models or /chat/completions.";
+  }
+  if (status === 404 && providerId === "nvidia") {
+    return "NVIDIA NIM endpoint or model was not found. Refresh the NVIDIA model list and select an available model.";
+  }
+  if ((status === 400 || status === 422) && providerId === "custom") {
+    return `Custom provider rejected the request. Verify the model ID and OpenAI-compatible endpoint. ${safeBody}`.trim();
+  }
+  if ((status === 400 || status === 422) && providerId === "nvidia") {
+    return `NVIDIA NIM rejected the request. Verify the selected model and token limit. ${safeBody}`.trim();
+  }
+  const details = safeBody || statusText || "Request failed";
+  return `${providerName} API error (${status}): ${details}`;
+}
+
 function resolveProviderModelPair(providerId: string, modelId: string) {
   const requestedProvider = getProviderById(providerId);
   const requestedStaticModel = getModelById(providerId, modelId);
@@ -304,11 +339,18 @@ export const getChatCompletionStream = async (
     });
 
     if (!response.ok) {
-      console.error(`${provider.name} API error:`, response.status, response.statusText);
       const errorText = await response.text();
-      console.error("Error details:", errorText);
-      // Pass error details in a structured format
-      onError(`${provider.name} API error: ${response.status}|||${errorText}`);
+      console.error(`${provider.name} API error:`, response.status, response.statusText);
+      console.error("Error details:", redactProviderError(errorText));
+      onError(
+        formatProviderHttpError(
+          providerId,
+          provider.name,
+          response.status,
+          response.statusText,
+          errorText,
+        ),
+      );
       return;
     }
 

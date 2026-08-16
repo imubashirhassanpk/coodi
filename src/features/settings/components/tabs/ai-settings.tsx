@@ -21,6 +21,7 @@ import { ProviderSelector } from "@/features/ai/components/selectors/provider-se
 import { useAvailableProviders } from "@/features/ai/hooks/use-available-providers";
 import { useAIProviderSettingsActions } from "@/features/ai/services/providers/ai-provider-settings-registry";
 import { useAIChatStore } from "@/features/ai/stores/ai-chat.store";
+import { DEFAULT_NVIDIA_MODEL_ID } from "@/features/ai/types/providers.types";
 import type { AgentConfig, SessionConfigOption } from "@/features/ai/types/acp.types";
 import { useToast } from "@/features/layout/contexts/toast-context";
 import { TypedConfirmAction } from "@/features/settings/components/typed-confirm-action";
@@ -59,7 +60,6 @@ import {
   storeProviderApiToken,
 } from "@/features/ai/services/ai-token-service";
 const DEFAULT_AUTOCOMPLETE_MODEL_ID = "mistralai/devstral-small";
-const DEFAULT_NVIDIA_MODEL_ID = "meta/llama-3.1-8b-instruct";
 
 function resolveAutocompleteDefaultModelId(models: Array<{ id: string; name: string }>): string {
   if (models.some((model) => model.id === DEFAULT_AUTOCOMPLETE_MODEL_ID)) {

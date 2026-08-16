@@ -1,3 +1,5 @@
+export const DEFAULT_NVIDIA_MODEL_ID = "meta/llama-3.1-8b-instruct";
+
 export interface ModelProvider {
   id: string;
   name: string;
@@ -237,7 +239,13 @@ const AI_PROVIDERS: ModelProvider[] = [
     name: "NVIDIA NIM",
     apiUrl: "https://integrate.api.nvidia.com/v1/chat/completions",
     requiresApiKey: true,
-    models: [],
+    models: [
+      {
+        id: DEFAULT_NVIDIA_MODEL_ID,
+        name: "Llama 3.1 8B Instruct",
+        maxTokens: 131072,
+      },
+    ],
   },
   {
     id: "custom",

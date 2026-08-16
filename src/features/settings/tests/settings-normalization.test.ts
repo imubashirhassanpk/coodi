@@ -231,6 +231,25 @@ describe("settings normalization", () => {
     );
   });
 
+  it("normalizes custom autocomplete endpoints and preserves their model fallback", () => {
+    const normalized = normalizeSettings({
+      ...getDefaultSettingsSnapshot(),
+      aiProviderId: "custom",
+      aiModelId: "",
+      aiCustomBaseUrl: "",
+      aiCustomModelId: "",
+      aiAutocompleteCustomBaseUrl: " https://example.test/v1/models/ ",
+      aiAutocompleteCustomModelId: " local-model ",
+    });
+
+    expect(normalized.aiAutocompleteCustomBaseUrl).toBe("https://example.test/v1");
+    expect(normalized.aiAutocompleteCustomModelId).toBe("local-model");
+    expect(normalized.aiModelId).toBe("local-model");
+    expect(normalizeSettingValue("aiAutocompleteCustomBaseUrl", " https://example.test/v1/ ")).toBe(
+      "https://example.test/v1",
+    );
+  });
+
   it("migrates stale built-in AI model selections to supported models", () => {
     expect(
       normalizeSettings({
