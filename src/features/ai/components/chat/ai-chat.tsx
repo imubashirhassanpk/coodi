@@ -1027,7 +1027,7 @@ details: ${errorDetails || mainError}
   return (
     <div
       className={cn(
-        "font-sans flex h-full select-none flex-col bg-transparent text-foreground selection:bg-selection selection:text-foreground ui-text-sm",
+        "font-sans flex h-0 min-h-0 min-w-0 w-full flex-1 select-none flex-col bg-transparent text-foreground selection:bg-selection selection:text-foreground ui-text-sm",
         className,
       )}
     >
@@ -1105,7 +1105,7 @@ details: ${errorDetails || mainError}
             </div>
           ) : (
             <MessageScrollerProvider autoScroll defaultScrollPosition="last-anchor">
-              <MessageScroller>
+              <MessageScroller className="h-0 min-h-0 min-w-0 flex-1">
                 <MessageScrollerViewport>
                   <ChatMessages
                     surfaceId={surfaceId}

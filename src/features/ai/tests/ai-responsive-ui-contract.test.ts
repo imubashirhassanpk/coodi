@@ -25,6 +25,30 @@ describe("AI responsive UI contract", () => {
     expect(source).toContain("max-h-[min(70vh,32rem)] min-w-64");
   });
 
+  it("keeps the Agent message viewport as the flexible vertical scroll owner", () => {
+    const source = readFileSync(`${aiComponentsDirectory}/chat/ai-chat.tsx`, "utf8");
+    const agentTabSource = readFileSync(`${aiComponentsDirectory}/agent-tab.tsx`, "utf8");
+    const scrollerSource = readFileSync(
+      `${aiComponentsDirectory}/../../../ui/message-scroller.tsx`,
+      "utf8",
+    );
+
+    expect(source).toContain(
+      'font-sans flex h-0 min-h-0 min-w-0 w-full flex-1 select-none flex-col',
+    );
+    expect(source).toContain('className="h-0 min-h-0 min-w-0 flex-1"');
+    expect(agentTabSource).toContain("size-full min-h-0 min-w-0 overflow-hidden");
+    expect(scrollerSource).toContain("size-full min-h-0 min-w-0 overflow-y-auto");
+  });
+
+  it("keeps the Prompt composer bounded and wrapping at narrow widths", () => {
+    const source = readFileSync(`${aiComponentsDirectory}/input/chat-composer.tsx`, "utf8");
+
+    expect(source).toContain("min-w-0 max-w-full overflow-visible");
+    expect(source).toContain("flex min-w-0 max-w-full flex-wrap");
+    expect(source).toContain("overflow-x-hidden overflow-y-auto");
+  });
+
   it("keeps model selector menus bounded by available width", () => {
     const source = readFileSync(
       `${aiComponentsDirectory}/selectors/model-selector.tsx`,

@@ -14,7 +14,7 @@ export const ChatComposer = forwardRef<
   ref,
 ) {
   const rootClassName = cn(
-    "ai-chat-container relative z-20 overflow-visible",
+    "ai-chat-container relative z-20 min-w-0 max-w-full overflow-visible",
     dragActive && "border-primary bg-primary/5 shadow-[0_0_0_1px_var(--primary)]",
     connected && "rounded-t-none",
     className,
@@ -53,7 +53,7 @@ export function ChatComposerBody({
       data-ai-element="prompt-input-body"
       variant={variant === "prominent" ? "plain" : "surface"}
       className={cn(
-        "transition-[border-color,background-color,box-shadow] duration-(--app-duration-fast)",
+        "min-w-0 max-w-full transition-[border-color,background-color,box-shadow] duration-(--app-duration-fast)",
         variant === "prominent" && "rounded-2xl bg-background",
         connected && "rounded-t-none",
         className,
@@ -96,7 +96,7 @@ export function ChatComposerToolbar({ className, ...props }: ComponentProps<"div
   return (
     <div
       data-ai-element="prompt-input-toolbar"
-      className={cn("flex items-end gap-2 px-2 pb-2 pt-1", className)}
+      className={cn("flex min-w-0 max-w-full flex-wrap items-end gap-2 px-2 pb-2 pt-1", className)}
       {...props}
     />
   );
