@@ -2,9 +2,16 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useProFeature } from "@/extensions/ui/hooks/use-pro-feature";
 import { useProviderById } from "@/features/ai/hooks/use-available-providers";
 import { getCustomModelOptions } from "@/features/ai/lib/custom-model-options";
+import { resolveCustomProviderBaseUrl } from "@/features/ai/lib/custom-provider-config";
 import { canUseProviderWithoutApiKey } from "@/features/ai/lib/provider-access";
-import { getProviderApiToken } from "@/features/ai/services/ai-token-service";
-import { getProvider } from "@/features/ai/services/providers/ai-provider-registry";
+import {
+  getProviderApiToken,
+  PROVIDER_API_TOKEN_CHANGED_EVENT,
+} from "@/features/ai/services/ai-token-service";
+import {
+  getProvider,
+  setCustomProviderBaseUrl,
+} from "@/features/ai/services/providers/ai-provider-registry";
 import { useAIChatStore } from "@/features/ai/stores/ai-chat.store";
 import { getProviderById } from "@/features/ai/types/providers.types";
 import { useSettingsStore } from "@/features/settings/stores/settings.store";
@@ -34,17 +41,30 @@ export function useAIModelOptions(
   );
   const provider = useProviderById(providerId);
   const isCustomProvider = providerId === "custom";
+  const customProviderBaseUrl = useSettingsStore((state) =>
+    resolveCustomProviderBaseUrl(state.settings),
+  );
 
   const fetchDynamicModels = useCallback(async () => {
-    if (isCustomProvider) return;
-
     const config = getProviderById(providerId);
     const instance = getProvider(providerId);
+
+    if (isCustomProvider) {
+      if (!customProviderBaseUrl.trim()) {
+        setModelFetchError("Custom provider base URL is required.");
+        setDynamicModels(providerId, []);
+        return;
+      }
+      setCustomProviderBaseUrl(customProviderBaseUrl);
+    }
 
     setModelFetchError(null);
     if (!instance?.getModels) return;
 
-    const apiKey = config?.requiresApiKey ? await getProviderApiToken(providerId) : undefined;
+    const apiKey =
+      config?.requiresApiKey || isCustomProvider
+        ? await getProviderApiToken(providerId)
+        : undefined;
     const canFetchWithoutApiKey = providerId === "openrouter";
     const canUseWithoutApiKey = canUseProviderWithoutApiKey({
       providerId,
@@ -52,7 +72,14 @@ export function useAIModelOptions(
       hasStoredKey: Boolean(apiKey),
       requiresApiKey: config?.requiresApiKey ?? true,
     });
-    if (config?.requiresApiKey && !canUseWithoutApiKey && !canFetchWithoutApiKey) return;
+    if (
+      config?.requiresApiKey &&
+      !canUseWithoutApiKey &&
+      !canFetchWithoutApiKey &&
+      !isCustomProvider
+    ) {
+      return;
+    }
 
     setIsLoadingModels(true);
     try {
@@ -70,11 +97,30 @@ export function useAIModelOptions(
     } finally {
       setIsLoadingModels(false);
     }
-  }, [isCustomProvider, providerId, setDynamicModels, subscription]);
+  }, [
+    customProviderBaseUrl,
+    isCustomProvider,
+    providerId,
+    setDynamicModels,
+    subscription,
+  ]);
 
   useEffect(() => {
     void fetchDynamicModels();
   }, [fetchDynamicModels]);
+
+  useEffect(() => {
+    if (!isCustomProvider || typeof window === "undefined") return;
+
+    const handleTokenChange = (event: Event) => {
+      const changedProviderId = (event as CustomEvent<{ providerId?: string }>).detail?.providerId;
+      if (changedProviderId !== providerId) return;
+      void fetchDynamicModels();
+    };
+
+    window.addEventListener(PROVIDER_API_TOKEN_CHANGED_EVENT, handleTokenChange);
+    return () => window.removeEventListener(PROVIDER_API_TOKEN_CHANGED_EVENT, handleTokenChange);
+  }, [fetchDynamicModels, isCustomProvider, providerId]);
 
   const availableModels = useMemo(() => {
     const staticModels = provider?.models || [];

@@ -8,6 +8,7 @@ const tabsDirectory = fileURLToPath(new URL("../components/tabs", import.meta.ur
 const aiSelectorsDirectory = fileURLToPath(
   new URL("../../ai/components/selectors", import.meta.url),
 );
+const layoutDirectory = fileURLToPath(new URL("../../layout/components", import.meta.url));
 
 const settingsComponentFiles = [
   ...readdirSync(componentsDirectory)
@@ -90,6 +91,7 @@ describe("settings UI contract", () => {
 
   it("renders Settings as a full-height tab with one bounded vertical scroll owner", () => {
     const settingsDialogSource = readFileSync(`${componentsDirectory}/settings-dialog.tsx`, "utf8");
+    const mainLayoutSource = readFileSync(`${layoutDirectory}/main-layout.tsx`, "utf8");
 
     expect(settingsDialogSource).toContain('data-settings-page="true"');
     expect(settingsDialogSource).toContain('className="flex size-full min-h-0 min-w-0 flex-col overflow-hidden bg-surface"');
@@ -98,6 +100,27 @@ describe("settings UI contract", () => {
     expect(settingsDialogSource).toContain('orientation="vertical"');
     expect(settingsDialogSource).toContain("overflow-x-hidden");
     expect(settingsDialogSource).not.toContain("scrollContent={false}");
+    expect(mainLayoutSource).toContain(
+      'className="coodi-workbench-glass relative z-10 flex h-0 min-h-0 min-w-0 flex-1 flex-col overflow-hidden"',
+    );
+    expect(mainLayoutSource).toContain(
+      'className="flex h-0 min-h-0 min-w-0 flex-1 overflow-hidden pr-(--coodi-workbench-gap)"',
+    );
+  });
+
+  it("bounds the Keybindings table scroll viewport inside its fill layout", () => {
+    const keyboardSettingsSource = readFileSync(
+      `${tabsDirectory}/keyboard-settings.tsx`,
+      "utf8",
+    );
+
+    expect(keyboardSettingsSource).toContain('className="flex h-0 min-h-0 flex-1 flex-col"');
+    expect(keyboardSettingsSource).toContain(
+      'className="h-0 min-h-0 flex-1 overflow-hidden"',
+    );
+    expect(keyboardSettingsSource).toContain(
+      'className="h-full min-h-0 overflow-x-auto overflow-y-auto"',
+    );
   });
 
   it("content-sizes AI selector triggers and menus in settings", () => {

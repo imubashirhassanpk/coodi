@@ -311,11 +311,20 @@ export const AISettings = () => {
     updateSetting("aiModelId", nextModelId);
   };
 
-  const loadAutocompleteModels = async () => {
+  const loadAutocompleteModels = useCallback(async () => {
     setIsLoadingAutocompleteModels(true);
     setAutocompleteModelError(null);
     try {
-      const models = await fetchAutocompleteModels();
+      const isCustomAutocomplete = settings.aiAutocompleteProvider === "custom";
+      const models = await fetchAutocompleteModels({
+        provider: isCustomAutocomplete ? "custom" : "openrouter",
+        baseUrl: isCustomAutocomplete
+          ? customAutocompleteBaseUrlInput || settings.aiAutocompleteCustomBaseUrl
+          : undefined,
+        apiKey: isCustomAutocomplete
+          ? await getProviderApiToken(CUSTOM_AUTOCOMPLETE_PROVIDER_ID)
+          : undefined,
+      });
       if (models.length > 0) {
         setAutocompleteModels(models);
         setAutocompleteModelError(null);
@@ -332,11 +341,18 @@ export const AISettings = () => {
     } finally {
       setIsLoadingAutocompleteModels(false);
     }
-  };
+  }, [
+    customAutocompleteBaseUrlInput,
+    hasCustomAutocompleteApiKey,
+    settings.aiAutocompleteCustomBaseUrl,
+    settings.aiAutocompleteModelId,
+    settings.aiAutocompleteProvider,
+    updateSetting,
+  ]);
 
   useEffect(() => {
     void loadAutocompleteModels();
-  }, []);
+  }, [loadAutocompleteModels]);
 
   useEffect(() => {
     setCustomAutocompleteModelInput(settings.aiAutocompleteCustomModelId);

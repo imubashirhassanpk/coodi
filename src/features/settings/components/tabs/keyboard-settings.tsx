@@ -227,7 +227,7 @@ export const KeyboardSettings = () => {
         {isEditingKeybindings ? (
           <motion.div
             key="keyboard-editor"
-            className="flex h-full flex-col"
+            className="flex h-0 min-h-0 flex-1 flex-col"
             {...editorStepTransition}
           >
             <div className="mb-3 flex items-center justify-between gap-3">
@@ -302,8 +302,8 @@ export const KeyboardSettings = () => {
               />
             </div>
 
-            <div className="flex-1 overflow-hidden">
-              <div className="h-full overflow-x-auto overflow-y-auto">
+            <div className="h-0 min-h-0 flex-1 overflow-hidden">
+              <div className="h-full min-h-0 overflow-x-auto overflow-y-auto">
                 <Table className={keybindingTableMinWidth()}>
                   <colgroup>
                     <col className="w-[32%]" />

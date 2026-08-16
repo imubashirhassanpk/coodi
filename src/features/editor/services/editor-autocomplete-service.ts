@@ -1,3 +1,11 @@
+import {
+  CUSTOM_AUTOCOMPLETE_PROVIDER_ID,
+} from "@/features/ai/lib/custom-provider-config";
+import { getProviderApiToken } from "@/features/ai/services/ai-token-service";
+import {
+  getProvider,
+  setCustomProviderBaseUrl,
+} from "@/features/ai/services/providers/ai-provider-registry";
 import { providerFetch } from "@/features/ai/services/providers/provider-fetch";
 import { getApiBase } from "@/utils/api-base";
 
@@ -54,7 +62,35 @@ function parseModelListFromUnknown(payload: unknown): AutocompleteModel[] {
     .filter((model): model is AutocompleteModel => Boolean(model));
 }
 
-export async function fetchAutocompleteModels(): Promise<AutocompleteModel[]> {
+export interface FetchAutocompleteModelsOptions {
+  provider?: "openrouter" | "custom";
+  baseUrl?: string;
+  apiKey?: string | null;
+}
+
+export async function fetchAutocompleteModels(
+  options: FetchAutocompleteModelsOptions = {},
+): Promise<AutocompleteModel[]> {
+  if (options.provider === "custom") {
+    const baseUrl = options.baseUrl?.trim() || "";
+    if (!baseUrl) {
+      throw new AutocompleteError("Custom autocomplete base URL is required.", 400);
+    }
+
+    setCustomProviderBaseUrl(baseUrl);
+    const provider = getProvider("custom");
+    if (!provider?.getModels) {
+      throw new AutocompleteError("Custom provider model discovery is unavailable.", 500);
+    }
+
+    const apiKey = options.apiKey ?? (await getProviderApiToken(CUSTOM_AUTOCOMPLETE_PROVIDER_ID));
+    const models = await provider.getModels(apiKey || undefined);
+    return models.map((model) => ({
+      id: model.id,
+      name: model.name || model.id,
+    }));
+  }
+
   const response = await providerFetch(`${API_BASE}/api/ai/autocomplete/models`, {
     method: "GET",
   });

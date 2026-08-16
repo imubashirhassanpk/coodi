@@ -5,6 +5,17 @@ import { invoke } from "@tauri-apps/api/core";
  * Handles secure storage and retrieval of API tokens using Tauri's secure storage
  */
 
+export const PROVIDER_API_TOKEN_CHANGED_EVENT = "coodi:provider-api-token-changed";
+
+function notifyProviderApiTokenChanged(providerId: string): void {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(
+    new CustomEvent(PROVIDER_API_TOKEN_CHANGED_EVENT, {
+      detail: { providerId },
+    }),
+  );
+}
+
 // Get API token for a specific provider
 export const getProviderApiToken = async (providerId: string): Promise<string | null> => {
   try {
@@ -22,6 +33,7 @@ export const getProviderApiToken = async (providerId: string): Promise<string | 
 export const storeProviderApiToken = async (providerId: string, token: string): Promise<void> => {
   try {
     await invoke("store_ai_provider_token", { providerId, token });
+    notifyProviderApiTokenChanged(providerId);
   } catch (error) {
     console.error(`Error storing ${providerId} API token:`, error);
     throw error;
@@ -32,6 +44,7 @@ export const storeProviderApiToken = async (providerId: string, token: string): 
 export const removeProviderApiToken = async (providerId: string): Promise<void> => {
   try {
     await invoke("remove_ai_provider_token", { providerId });
+    notifyProviderApiTokenChanged(providerId);
   } catch (error) {
     console.error(`Error removing ${providerId} API token:`, error);
     throw error;
