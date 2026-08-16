@@ -889,5 +889,9 @@ export default function MarkdownRenderer({ content, onApplyCode, chatId }: Markd
     }
   }
 
-  return <div>{renderContent(normalizedContent, onApplyCode)}</div>;
+  return (
+    <div className="min-w-0 max-w-full overflow-x-hidden">
+      {renderContent(normalizedContent, onApplyCode)}
+    </div>
+  );
 }

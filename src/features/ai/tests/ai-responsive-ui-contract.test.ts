@@ -32,6 +32,11 @@ describe("AI responsive UI contract", () => {
       `${aiComponentsDirectory}/../../../ui/message-scroller.tsx`,
       "utf8",
     );
+    const markdownSource = readFileSync(
+      `${aiComponentsDirectory}/messages/markdown-renderer.tsx`,
+      "utf8",
+    );
+    const messageSource = readFileSync(`${aiComponentsDirectory}/../../../ui/message.tsx`, "utf8");
 
     expect(source).toContain(
       'font-sans flex h-0 min-h-0 min-w-0 w-full flex-1 select-none flex-col',
@@ -41,6 +46,8 @@ describe("AI responsive UI contract", () => {
     expect(scrollerSource).toContain(
       "h-full min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain",
     );
+    expect(markdownSource).toContain('className="min-w-0 max-w-full overflow-x-hidden"');
+    expect(messageSource).toContain("min-w-0 max-w-full overflow-x-hidden select-text");
   });
 
   it("keeps the Prompt composer bounded and wrapping at narrow widths", () => {

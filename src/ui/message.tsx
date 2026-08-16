@@ -88,7 +88,7 @@ function MessageResponse({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="message-response"
       className={cn(
-        "select-text pr-1 leading-relaxed text-foreground wrap-anywhere *:select-text [&_.select-none]:select-none! **:aria-[label]:select-none! **:[[role=button]]:select-none! [&_button]:select-none!",
+        "min-w-0 max-w-full overflow-x-hidden select-text pr-1 leading-relaxed text-foreground wrap-anywhere *:select-text [&_.select-none]:select-none! **:aria-[label]:select-none! **:[[role=button]]:select-none! [&_button]:select-none!",
         className,
       )}
       {...props}
