@@ -225,7 +225,7 @@ export function ChatHeader({
             size="xs"
             variant="ghost"
             leftIcon={Search}
-            className="h-7 bg-surface/45"
+            className="h-7 min-w-0 flex-1 bg-surface/45"
           />
 
           <span className="min-w-10 shrink-0 text-right text-subtle-foreground ui-text-sm">

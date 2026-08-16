@@ -29,7 +29,7 @@ export function SettingsView({ layout = "stack", className, ...props }: Settings
     <div
       data-slot="settings-view"
       className={cn(
-        "min-w-0",
+        "w-full min-w-0",
         layout === "stack" ? "space-y-4" : "flex h-full min-h-0 flex-col",
         className,
       )}
@@ -59,7 +59,7 @@ export default function Section({
   return (
     <section
       className={cn(
-        "rounded-lg transition-[background-color,box-shadow] data-[settings-search-section-active=true]:bg-primary/5 data-[settings-search-section-active=true]:ring-1 data-[settings-search-section-active=true]:ring-primary/25",
+        "w-full min-w-0 rounded-lg transition-[background-color,box-shadow] data-[settings-search-section-active=true]:bg-primary/5 data-[settings-search-section-active=true]:ring-1 data-[settings-search-section-active=true]:ring-primary/25",
         hideHeader && "first:[&>.settings-section-header]:hidden",
         className,
       )}

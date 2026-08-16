@@ -63,7 +63,7 @@ function AgentPreferencesSubmenu({
         Agent
         <CurrentValue>{currentAgentName}</CurrentValue>
       </DropdownMenuSubTrigger>
-      <DropdownMenuSubContent className="min-w-56">
+      <DropdownMenuSubContent className="min-w-56 max-w-[calc(100vw-1rem)] max-h-[min(70vh,32rem)] overflow-y-auto">
         <DropdownMenuRadioGroup
           value={currentAgentId}
           onValueChange={(agentId) => {
@@ -123,7 +123,7 @@ function ModePreferencesSubmenu({ currentAgentId }: { currentAgentId: AgentType 
         Mode
         <CurrentValue>{selectedModeName}</CurrentValue>
       </DropdownMenuSubTrigger>
-      <DropdownMenuSubContent>
+      <DropdownMenuSubContent className="max-w-[calc(100vw-1rem)] max-h-[min(70vh,32rem)] overflow-y-auto">
         <DropdownMenuRadioGroup
           value={selectedModeId}
           onValueChange={(nextMode) => {
@@ -174,7 +174,7 @@ function CoodiAgentPreferences({
           Provider
           <CurrentValue>{currentProvider?.name ?? providerId}</CurrentValue>
         </DropdownMenuSubTrigger>
-        <DropdownMenuSubContent className="min-w-48">
+        <DropdownMenuSubContent className="min-w-48 max-w-[calc(100vw-1rem)] max-h-[min(70vh,32rem)] overflow-y-auto">
           <DropdownMenuRadioGroup value={providerId} onValueChange={onProviderChange}>
             {providers.map((provider) => (
               <DropdownMenuRadioItem key={provider.id} value={provider.id}>
@@ -192,7 +192,7 @@ function CoodiAgentPreferences({
           Model
           <CurrentValue>{currentModelName}</CurrentValue>
         </DropdownMenuSubTrigger>
-        <DropdownMenuSubContent className="max-h-80 min-w-64 overflow-y-auto">
+        <DropdownMenuSubContent className="max-h-[min(70vh,32rem)] min-w-64 max-w-[calc(100vw-1rem)] overflow-y-auto">
           {modelFetchError ? (
             <DropdownMenuGroup>
               <DropdownMenuLabel className="max-w-64 text-warning">
@@ -249,7 +249,7 @@ function AcpConfigPreferences({
           {option.name}
           <CurrentValue>{currentName}</CurrentValue>
         </DropdownMenuSubTrigger>
-        <DropdownMenuSubContent className="min-w-48">
+        <DropdownMenuSubContent className="min-w-48 max-w-[calc(100vw-1rem)] max-h-[min(70vh,32rem)] overflow-y-auto">
           <DropdownMenuRadioGroup
             value={currentValue}
             onValueChange={(value) => onChange(option.id, value)}
@@ -318,7 +318,11 @@ export function ChatPreferencesMenu({
       >
         <Preferences />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" side="top" className="min-w-60">
+      <DropdownMenuContent
+        align="end"
+        side="top"
+        className="w-64 min-w-0 max-w-[calc(100vw-1rem)] max-h-[min(70vh,32rem)] overflow-y-auto"
+      >
         <DropdownMenuGroup>
           {preferences.showAgentPreference && onAgentChange ? (
             <AgentPreferencesSubmenu
