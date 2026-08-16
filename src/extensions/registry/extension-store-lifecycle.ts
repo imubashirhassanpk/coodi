@@ -169,13 +169,6 @@ export async function installExtensionLifecycle(params: {
     });
     const runtimeManifest = buildRuntimeManifest(extension.manifest, resolvedTools.toolPaths);
 
-    if (extension.manifest.lsp && !runtimeManifest.lsp) {
-      const runtimeIssue =
-        resolvedTools.issues.find((issue) => issue.tool === "lsp")?.message ||
-        "Language server could not be installed. Reinstall the language tools.";
-      throw new Error(runtimeIssue);
-    }
-
     extensionRegistry.registerExtension(runtimeManifest, {
       isBundled: false,
       isEnabled: true,

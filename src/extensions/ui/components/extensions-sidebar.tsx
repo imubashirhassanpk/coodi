@@ -1562,7 +1562,7 @@ export const ExtensionsSidebar = () => {
   }, [extensionContextMenu.data, extensionsWithUpdates, installingAgentIds, availableExtensions]);
 
   return (
-    <div className="font-sans flex h-full min-h-0 flex-col bg-background">
+    <div className="font-sans flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-background">
       <div className="shrink-0 border-border/70 border-b px-5 py-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0">
@@ -1640,8 +1640,8 @@ export const ExtensionsSidebar = () => {
         </div>
       </div>
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[minmax(380px,1fr)_minmax(340px,440px)]">
-        <ScrollArea className="min-h-0 border-border/70 border-r" contentClassName="p-5">
+      <div className="grid h-0 min-h-0 min-w-0 flex-1 grid-cols-1 overflow-hidden lg:grid-cols-[minmax(380px,1fr)_minmax(340px,440px)]">
+        <ScrollArea className="h-full min-h-0 min-w-0 border-border/70 border-r" contentClassName="p-5">
           {settings.extensionsActiveTab === "skill" && isLoadingSkills ? (
             <div className="mb-3">
               <Spinner label="Loading skills" showLabel compact />
@@ -1683,7 +1683,7 @@ export const ExtensionsSidebar = () => {
         </ScrollArea>
 
         <ScrollArea
-          className="hidden min-h-0 bg-surface/25 lg:block"
+          className="hidden h-full min-h-0 min-w-0 bg-surface/25 lg:block"
           contentClassName="p-5"
           render={<aside />}
         >
@@ -1742,8 +1742,20 @@ export const ExtensionsSidebar = () => {
               ) : null}
 
               {selectedExtension.runtimeIssues?.length ? (
-                <Alert tone="error">
-                  <AlertDescription>{selectedExtension.runtimeIssues[0]?.message}</AlertDescription>
+                <Alert tone="warning" role="status">
+                  <AlertDescription>
+                    <div className="space-y-1">
+                      <div className="font-medium">Runtime tools unavailable</div>
+                      {selectedExtension.runtimeIssues.map((issue) => (
+                        <div key={`${issue.tool}:${issue.message}`}>
+                          <span className="font-medium capitalize">{issue.tool}:</span> {issue.message}
+                        </div>
+                      ))}
+                      <div className="pt-1 text-subtle-foreground">
+                        The language extension is installed, but these optional tools still need to be installed on this computer.
+                      </div>
+                    </div>
+                  </AlertDescription>
                 </Alert>
               ) : null}
 

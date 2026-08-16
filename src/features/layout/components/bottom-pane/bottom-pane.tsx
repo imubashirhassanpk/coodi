@@ -263,9 +263,10 @@ const BottomPane = () => {
   return (
     <div
       ref={paneFrameRef}
-      className={cn("flex shrink-0 flex-col", !isBottomPaneVisible && "hidden")}
+      aria-hidden={!isBottomPaneVisible}
+      className={cn("shrink-0 flex-col", isBottomPaneVisible ? "flex" : "hidden")}
       style={{
-        height: `calc(${height}px + var(--coodi-workbench-gap))`,
+        height: isBottomPaneVisible ? `calc(${height}px + var(--coodi-workbench-gap))` : 0,
       }}
     >
       {resizeGutter}
