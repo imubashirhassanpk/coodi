@@ -142,9 +142,13 @@ const TitleBar = ({ showMinimal = false }: TitleBarProps) => {
     };
 
     let cleanup: (() => void) | void;
-    void initWindow().then((dispose) => {
-      cleanup = dispose;
-    });
+    void initWindow()
+      .then((dispose) => {
+        cleanup = dispose;
+      })
+      .catch(() => {
+        // Native window APIs are unavailable in a plain browser preview.
+      });
 
     return () => {
       cleanup?.();

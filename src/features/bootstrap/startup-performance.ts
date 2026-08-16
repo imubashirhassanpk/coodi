@@ -14,7 +14,11 @@ export type StartupMilestone =
 const recordedMilestones = new Set<StartupMilestone>();
 
 function isInitialWindow() {
-  return getCurrentWindow().label === "main";
+  try {
+    return getCurrentWindow().label === "main";
+  } catch {
+    return false;
+  }
 }
 
 export function recordStartupMilestone(milestone: StartupMilestone) {

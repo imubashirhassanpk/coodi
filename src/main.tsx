@@ -15,14 +15,14 @@ recordStartupMilestone("frontend:entry");
 const renderStartedAt = performance.now();
 traceWindowOpen("reactRender:start");
 
-void initializeFrontendTerminalSession()
+void Promise.resolve()
+  .then(() => initializeFrontendTerminalSession())
   .catch((error) => {
     console.warn("Failed to clean up stale terminal sessions:", error);
-  })
-  .finally(() => {
-    createRoot(document.getElementById("root")!).render(<App />);
-    traceWindowOpen("reactRender:scheduled", {
-      durationMs: Math.round((performance.now() - renderStartedAt) * 100) / 100,
-    });
-    recordStartupMilestone("react:scheduled");
   });
+
+createRoot(document.getElementById("root")!).render(<App />);
+traceWindowOpen("reactRender:scheduled", {
+  durationMs: Math.round((performance.now() - renderStartedAt) * 100) / 100,
+});
+recordStartupMilestone("react:scheduled");

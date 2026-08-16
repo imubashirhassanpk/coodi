@@ -43,7 +43,15 @@ interface WorkspaceTabsActions {
   setProjectTheme: (projectId: string, theme: string) => void;
 }
 
-const currentWebviewWindow = typeof window === "undefined" ? null : getCurrentWebviewWindow();
+const currentWebviewWindow = (() => {
+  if (typeof window === "undefined") return null;
+
+  try {
+    return getCurrentWebviewWindow();
+  } catch {
+    return null;
+  }
+})();
 const workspaceTabsStorageKey = getWorkspaceTabsStorageKey(currentWebviewWindow?.label ?? "main");
 
 if (currentWebviewWindow) {

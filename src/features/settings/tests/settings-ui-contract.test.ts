@@ -96,6 +96,9 @@ describe("settings UI contract", () => {
     expect(settingsDialogSource).toContain('data-settings-page="true"');
     expect(settingsDialogSource).toContain('className="flex size-full min-h-0 min-w-0 flex-col overflow-hidden bg-surface"');
     expect(settingsDialogSource).toContain('className="flex h-0 min-h-0 min-w-0 flex-1 overflow-hidden"');
+    expect(settingsDialogSource).toContain(
+      'className="@container/settings m-2 flex min-h-0 min-w-0 flex-1 flex-col bg-background"',
+    );
     expect(settingsDialogSource).toContain('className="h-0 min-h-0 min-w-0 flex-1"');
     expect(settingsDialogSource).toContain('viewportClassName="h-full min-h-0 min-w-0"');
     expect(settingsDialogSource).toContain(
@@ -135,6 +138,7 @@ describe("settings UI contract", () => {
       "utf8",
     );
 
+    expect(tabsSource).toContain('className="h-full min-h-0 min-w-0 flex-1"');
     expect(tabsSource).toContain('viewportClassName="h-full min-h-0 min-w-0"');
     expect(tabsSource).toContain('contentClassName="min-h-full min-w-0 p-2"');
     expect(modalSource).toContain("settingsInitialTab: null");

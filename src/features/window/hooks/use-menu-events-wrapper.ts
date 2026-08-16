@@ -100,7 +100,12 @@ export function useMenuEventsWrapper() {
   useEffect(() => {
     let disposed = false;
     let unlisten: (() => void) | undefined;
-    const currentWindowLabel = getCurrentWebviewWindow().label;
+    let currentWindowLabel: string;
+    try {
+      currentWindowLabel = getCurrentWebviewWindow().label;
+    } catch {
+      return;
+    }
 
     const setupListener = async () => {
       unlisten = await listen<EmbeddedWebviewShortcutEvent>(

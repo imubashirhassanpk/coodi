@@ -102,7 +102,7 @@ export const SettingsVerticalTabs = ({
         className="h-0 min-h-0 flex-1 gap-0"
       >
         <ScrollArea
-          className="h-0 min-h-0 min-w-0 flex-1"
+          className="h-full min-h-0 min-w-0 flex-1"
           viewportClassName="h-full min-h-0 min-w-0"
           contentClassName="min-h-full min-w-0 p-2"
           viewportProps={{
