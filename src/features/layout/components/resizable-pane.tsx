@@ -177,7 +177,7 @@ export function ResizablePane({
       <div
         ref={contentRef}
         style={{ width: hidden ? "0px" : `${width}px` }}
-        className="flex min-h-0 shrink-0 flex-col overflow-hidden py-0"
+        className="flex h-full min-h-0 shrink-0 flex-col overflow-hidden py-0"
       >
         <div
           className={cn(
