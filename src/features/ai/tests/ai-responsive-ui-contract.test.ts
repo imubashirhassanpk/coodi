@@ -44,7 +44,7 @@ describe("AI responsive UI contract", () => {
     expect(source).toContain('className="h-0 min-h-0 min-w-0 flex-1"');
     expect(agentTabSource).toContain("size-full min-h-0 min-w-0 overflow-hidden");
     expect(scrollerSource).toContain(
-      "h-full min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain",
+      "h-0 min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain",
     );
     expect(markdownSource).toContain('className="min-w-0 max-w-full overflow-x-hidden"');
     expect(messageSource).toContain("min-w-0 max-w-full overflow-x-hidden select-text");
