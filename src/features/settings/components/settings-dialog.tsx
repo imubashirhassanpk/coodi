@@ -279,7 +279,7 @@ const SettingsDialog = ({ isOpen, onClose }: SettingsDialogProps) => {
           <Card
             variant="elevated"
             size="flush"
-            className="@container/settings m-2 flex h-0 min-h-0 min-w-0 flex-1 flex-col bg-background"
+            className="@container/settings m-2 flex h-full min-h-0 min-w-0 flex-1 flex-col bg-background"
           >
             <ScrollArea
               orientation="vertical"

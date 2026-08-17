@@ -101,7 +101,7 @@ describe("settings UI contract", () => {
       'className="flex h-0 min-h-0 min-w-0 flex-1 overflow-hidden"',
     );
     expect(settingsDialogSource).toContain(
-      'className="@container/settings m-2 flex h-0 min-h-0 min-w-0 flex-1 flex-col bg-background"',
+      'className="@container/settings m-2 flex h-full min-h-0 min-w-0 flex-1 flex-col bg-background"',
     );
     expect(settingsDialogSource).toContain('className="h-0 min-h-0 min-w-0 flex-1"');
     expect(settingsDialogSource).toContain('viewportClassName="h-full min-h-0 min-w-0"');
