@@ -15,6 +15,7 @@ import type { SettingsTab } from "@/features/window/stores/ui-state.store";
 import { Empty, EmptyDescription } from "@/ui/empty";
 import { Tabs, TabsList, TabsTrigger } from "@/ui/tabs";
 import { cn } from "@/utils/cn";
+import { handleBoundedWheelScroll } from "@/utils/scroll";
 
 interface SettingsVerticalTabsProps {
   activeTab: SettingsTab;
@@ -102,6 +103,7 @@ export const SettingsVerticalTabs = ({
       >
         <div
           aria-label="Settings navigation"
+          onWheel={handleBoundedWheelScroll}
           className="h-full min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain"
         >
           <TabsList

@@ -11,6 +11,7 @@ import { Card } from "@/ui/card";
 import { Dropdown, type MenuItem } from "@/ui/dropdown";
 import { Empty, EmptyDescription } from "@/ui/empty";
 import Input from "@/ui/input";
+import { handleBoundedWheelScroll } from "@/utils/scroll";
 import type { SearchResult } from "../types/search.types";
 import { SETTINGS_TAB_ITEMS, SettingsVerticalTabs } from "./settings-vertical-tabs";
 
@@ -287,6 +288,7 @@ const SettingsDialog = ({ isOpen, onClose }: SettingsDialogProps) => {
               aria-labelledby={activeTabId}
               data-settings-content=""
               tabIndex={-1}
+              onWheel={handleBoundedWheelScroll}
               className="h-0 min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain outline-none"
             >
               <div className="min-h-full h-max w-full max-w-full min-w-0 p-3 max-[720px]:p-2">

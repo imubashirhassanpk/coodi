@@ -8,6 +8,7 @@ import type * as React from "react";
 import { ArrowDownIcon } from "@/ui/icons";
 import { Button } from "@/ui/button";
 import { cn } from "@/utils/cn";
+import { handleBoundedWheelScroll } from "@/utils/scroll";
 
 function MessageScrollerProvider(
   props: React.ComponentProps<typeof MessageScrollerPrimitive.Provider>,
@@ -38,6 +39,7 @@ function MessageScrollerViewport({
   return (
     <MessageScrollerPrimitive.Viewport
       data-slot="message-scroller-viewport"
+      onWheel={handleBoundedWheelScroll}
       className={cn(
         "scrollbar-hidden h-0 min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain contain-content",
         className,
