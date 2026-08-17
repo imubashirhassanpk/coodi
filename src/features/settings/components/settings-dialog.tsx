@@ -11,7 +11,6 @@ import { Card } from "@/ui/card";
 import { Dropdown, type MenuItem } from "@/ui/dropdown";
 import { Empty, EmptyDescription } from "@/ui/empty";
 import Input from "@/ui/input";
-import { ScrollArea } from "@/ui/scroll-area";
 import type { SearchResult } from "../types/search.types";
 import { SETTINGS_TAB_ITEMS, SettingsVerticalTabs } from "./settings-vertical-tabs";
 
@@ -281,22 +280,19 @@ const SettingsDialog = ({ isOpen, onClose }: SettingsDialogProps) => {
             size="flush"
             className="@container/settings m-2 flex h-full min-h-0 min-w-0 flex-1 flex-col bg-background"
           >
-            <ScrollArea
-              orientation="vertical"
-              className="h-0 min-h-0 min-w-0 flex-1"
-              viewportClassName="h-full min-h-0 min-w-0"
-              contentClassName="min-h-full h-max w-full max-w-full min-w-0 overflow-x-hidden p-3 max-[720px]:p-2"
-              viewportProps={{
-                ref: contentRef,
-                id: activePanelId,
-                role: "tabpanel",
-                "aria-labelledby": activeTabId,
-                "data-settings-content": "",
-                tabIndex: -1,
-              }}
+            <div
+              ref={contentRef}
+              id={activePanelId}
+              role="tabpanel"
+              aria-labelledby={activeTabId}
+              data-settings-content=""
+              tabIndex={-1}
+              className="h-0 min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain outline-none"
             >
-              {renderTabContent()}
-            </ScrollArea>
+              <div className="min-h-full h-max w-full max-w-full min-w-0 p-3 max-[720px]:p-2">
+                {renderTabContent()}
+              </div>
+            </div>
           </Card>
         </div>
       </section>

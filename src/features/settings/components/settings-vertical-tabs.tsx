@@ -13,7 +13,6 @@ import {
 import type { ComponentType } from "react";
 import type { SettingsTab } from "@/features/window/stores/ui-state.store";
 import { Empty, EmptyDescription } from "@/ui/empty";
-import { ScrollArea } from "@/ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger } from "@/ui/tabs";
 import { cn } from "@/utils/cn";
 
@@ -101,18 +100,14 @@ export const SettingsVerticalTabs = ({
         orientation="vertical"
         className="h-0 min-h-0 flex-1 gap-0"
       >
-        <ScrollArea
-          className="h-full min-h-0 min-w-0 flex-1"
-          viewportClassName="h-full min-h-0 min-w-0"
-          contentClassName="min-h-full min-w-0 p-2"
-          viewportProps={{
-            "aria-label": "Settings navigation",
-          }}
+        <div
+          aria-label="Settings navigation"
+          className="h-full min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain"
         >
           <TabsList
             variant="bare"
             aria-label="Settings sections"
-            className="flex w-full flex-col items-stretch gap-0.5"
+            className="flex w-full min-w-0 flex-col items-stretch gap-0.5 p-2"
           >
             {visibleTabs.length > 0 ? (
               visibleTabs.map((item) => {
@@ -143,7 +138,7 @@ export const SettingsVerticalTabs = ({
               </Empty>
             )}
           </TabsList>
-        </ScrollArea>
+        </div>
       </Tabs>
     </div>
   );

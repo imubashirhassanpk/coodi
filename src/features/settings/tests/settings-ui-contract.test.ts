@@ -81,7 +81,6 @@ describe("settings UI contract", () => {
     const sectionSource = readFileSync(`${componentsDirectory}/settings-section.tsx`, "utf8");
 
     expect(dialogSource).toContain("@container/settings");
-    expect(dialogSource).toContain('orientation="vertical"');
     expect(dialogSource).not.toContain('orientation="both"');
     expect(dialogSource).toContain("overflow-x-hidden");
     expect(sectionSource).toContain("@max-[640px]/settings:flex-col");
@@ -103,12 +102,12 @@ describe("settings UI contract", () => {
     expect(settingsDialogSource).toContain(
       'className="@container/settings m-2 flex h-full min-h-0 min-w-0 flex-1 flex-col bg-background"',
     );
-    expect(settingsDialogSource).toContain('className="h-0 min-h-0 min-w-0 flex-1"');
-    expect(settingsDialogSource).toContain('viewportClassName="h-full min-h-0 min-w-0"');
     expect(settingsDialogSource).toContain(
-      'contentClassName="min-h-full h-max w-full max-w-full min-w-0 overflow-x-hidden p-3 max-[720px]:p-2"',
+      'className="h-0 min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain outline-none"',
     );
-    expect(settingsDialogSource).toContain('orientation="vertical"');
+    expect(settingsDialogSource).toContain(
+      'className="min-h-full h-max w-full max-w-full min-w-0 p-3 max-[720px]:p-2"',
+    );
     expect(settingsDialogSource).toContain("overflow-x-hidden");
     expect(settingsDialogSource).not.toContain("scrollContent={false}");
 
@@ -142,9 +141,12 @@ describe("settings UI contract", () => {
       "utf8",
     );
 
-    expect(tabsSource).toContain('className="h-full min-h-0 min-w-0 flex-1"');
-    expect(tabsSource).toContain('viewportClassName="h-full min-h-0 min-w-0"');
-    expect(tabsSource).toContain('contentClassName="min-h-full min-w-0 p-2"');
+    expect(tabsSource).toContain(
+      'className="h-full min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain"',
+    );
+    expect(tabsSource).toContain(
+      'className="flex w-full min-w-0 flex-col items-stretch gap-0.5 p-2"',
+    );
     expect(modalSource).toContain("settingsInitialTab: null");
     expect(modalSource).toContain(
       "set({ isSettingsDialogVisible: false, settingsInitialTab: null });",
